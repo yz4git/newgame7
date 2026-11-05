@@ -113,3 +113,13 @@ body{touch-action:manipulation}button,input,select{font:inherit}button{border:0;
 @media(max-height:735px){.note-highway{top:8%;bottom:15%}.note-token{height:34px;font-size:22px}.note-token.freestyle{height:37px;font-size:13px}.choice-btn{min-height:70px}.choice-btn .symbol{font-size:21px}}
 @media(max-height:625px){.note-highway{top:6%;bottom:12%}.note-token{height:29px;font-size:17px}.note-token.freestyle{height:30px;font-size:11px}.choice-btn{min-height:58px}.choice-btn .symbol{font-size:18px}}
 @media(prefers-reduced-motion:reduce){.note-token.freestyle{animation:none}.note-feedback.burst{animation-duration:.2s}}
+
+
+/* 8-hit FAN FEVER visual payoff: animation remains optional/reduced-motion safe. */
+.stage.fever{--accent:#ffe5a1;--accent2:#ffade0}
+.stage.fever .light-beam{opacity:.58;filter:blur(10px) saturate(1.45)}
+.stage.fever .particles span{animation-duration:2.7s;filter:drop-shadow(0 0 9px #fff2b4)}
+.stage.fever .note-target-line{box-shadow:0 0 20px #ffe4a5,0 0 35px #ff8ba5;background:linear-gradient(90deg,#ffc4df,#fff1b4,#a4eaff)}
+.stage.fever .note-highway{border-color:#fff0bf66;box-shadow:inset 0 0 28px #ffe2ad17,0 0 13px #ffe0ac44}
+.stage.fever .crowd .stick{filter:brightness(1.5)}
+@media(prefers-reduced-motion:reduce){.stage.fever .particles span,.stage.fever .light-beam{animation:none}}
