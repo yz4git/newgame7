@@ -17,9 +17,9 @@
 .actor .arm{position:absolute;top:96px;width:29px;height:86px;border-radius:19px;background:linear-gradient(90deg,var(--skin),#9e6d64);transform-origin:center 11px;z-index:5}.actor .arm.left{left:21px;transform:rotate(-40deg)}.actor .arm.right{left:91px;transform:rotate(43deg);z-index:7}.actor .arm:after{content:"";position:absolute;bottom:-8px;left:0;width:30px;height:25px;border-radius:30% 40%;background:#171d28}
 .actor .leg{position:absolute;top:155px;width:31px;height:95px;border-radius:24px;background:linear-gradient(90deg,#8c4c59,#282030);transform-origin:center 5px;z-index:4}.actor .leg.left{left:40px;transform:rotate(9deg)}.actor .leg.right{left:79px;transform:rotate(-8deg)}
 .actor .scarf{position:absolute;top:82px;left:8px;width:83px;height:15px;border-radius:100%;transform:rotate(-21deg);background:linear-gradient(90deg,#eb6b73,transparent);opacity:.9;z-index:5;animation:scarf 1.2s ease-in-out infinite alternate}
-.fighters[data-motion="advance"] .hero{animation:advHero 1.3s ease-in-out both}.fighters[data-motion="advance"] .enemy{animation:guardEnemy 1.3s ease-in-out both}
-.fighters[data-motion="rush"] .hero{animation:dashHero 1.55s cubic-bezier(.2,.8,.3,1) both}.fighters[data-motion="rush"] .hero .arm.right{animation:punch 1.2s .22s ease-in-out both}
-.fighters[data-motion="evade"] .hero{animation:evadeHero 1.6s ease-in-out both}.fighters[data-motion="evade"] .enemy .arm.right{animation:punch 1s ease-in-out both}
+.fighters[data-motion="advance"] .hero{animation:advHero var(--shot-duration,1.3s) ease-in-out both}.fighters[data-motion="advance"] .enemy{animation:guardEnemy 1.3s ease-in-out both}
+.fighters[data-motion="rush"] .hero{animation:dashHero var(--shot-duration,1.55s) cubic-bezier(.2,.8,.3,1) both}.fighters[data-motion="rush"] .hero .arm.right{animation:punch 1.2s .22s ease-in-out both}
+.fighters[data-motion="evade"] .hero{animation:evadeHero var(--shot-duration,1.6s) ease-in-out both}.fighters[data-motion="evade"] .enemy .arm.right{animation:punch 1s ease-in-out both}
 .fighters[data-motion="feint"] .hero{animation:feintHero 1.5s ease-in-out both}
 .fighters[data-motion="kick"] .hero{animation:kickHero 1.4s ease-in-out both}.fighters[data-motion="kick"] .hero .leg.right{animation:legKick 1.1s ease-in-out both}
 .fighters[data-motion="counter"] .hero{animation:counterHero 1.4s ease-in-out both}.fighters[data-motion="counter"] .enemy{animation:stagger 1.1s .4s both}
@@ -40,7 +40,7 @@
 @keyframes counterHero{0%{transform:translateX(-20px) rotate(-8deg)}50%{transform:translateX(80px) rotate(6deg)}100%{transform:translateX(55px)}}
 @keyframes stagger{0%{transform:translate(0,0) rotate(0)}55%{transform:translate(40px,22px) rotate(23deg)}100%{transform:translate(46px,50px) rotate(47deg)}}
 @keyframes finishHero{0%{transform:translateX(-10px)}40%{transform:translateX(80px) rotate(-10deg)}65%{transform:translateX(102px) rotate(-14deg)}100%{transform:translateX(80px)}}
-.media-surface{position:absolute;inset:0;z-index:3;pointer-events:none}.media-surface video,.media-surface img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}.media-surface video.active,.media-surface img.active{display:block}
+.media-surface{position:absolute;inset:0;z-index:3;pointer-events:none}.media-surface video,.media-surface img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none;background:#080d16}.media-surface video.active,.media-surface img.active{display:block}
 .cinema-shade{position:absolute;inset:0;z-index:4;background:linear-gradient(0deg,#070911bb,transparent 27%,transparent 76%,#080b15a0);pointer-events:none}
 .letterbox{position:absolute;left:0;right:0;height:6%;z-index:5;background:#03060b}.letterbox.top{top:0}.letterbox.bottom{bottom:0}
 .scene-corner{position:absolute;z-index:6;font-size:9px;font-weight:800;letter-spacing:.15em;text-shadow:0 2px 7px #000;pointer-events:none}.top-left{top:8.3%;left:16px;color:#ded8ca}.top-right{top:8.3%;right:16px;color:#f6c7b1}.bottom-left{bottom:8.8%;left:16px;right:28%;font-size:12px;letter-spacing:.06em;line-height:1.5}.bottom-right{bottom:9%;right:16px;font-variant-numeric:tabular-nums;color:#cdd4df}
