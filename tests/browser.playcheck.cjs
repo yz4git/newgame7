@@ -25,7 +25,12 @@ async function runVariant(v){
   const errors=[];
   page.on("pageerror",e=>errors.push("JS: "+e.message));
   page.on("console",m=>{if(m.type()==="error")errors.push("Console: "+m.text());});
-  page.on("requestfailed",r=>errors.push("Request: "+r.url()+" "+r.failure()?.errorText));
+  page.on("requestfailed",r=>{
+    const reason=r.failure()?.errorText||"";
+    // A deliberate video.load() on the next clip aborts in-flight range requests.
+    if(r.url().includes("/assets/clips/")&&/ERR_ABORTED|cancelled|canceled/i.test(reason))return;
+    errors.push("Request: "+r.url()+" "+reason);
+  });
   const url=process.env.PLAYCHECK_URL||"http://127.0.0.1:8765/";
   const response=await page.goto(url,{waitUntil:"domcontentloaded",timeout:60000});
   assert.equal(response.status(),200,"page returns OK");
@@ -52,6 +57,15 @@ async function runVariant(v){
   }));
   assert.equal(padRects.length,3);
   assert.ok(padRects.every(r=>r.width>85&&r.height>=55&&r.bottom<=v.height),"buttons fit and are large enough");
+  // Screenshots may be slow on a cold iPhone WebKit emulator. Restart the show
+  // after capturing the stage so the first note is never missed by the test itself.
+  await page.evaluate(()=>document.getElementById("restartBtn").click());
+  const mediaState=await page.evaluate(()=>({
+    badge:document.querySelector("#clipBadge").textContent,
+    canPlay:document.querySelector("#clipVideo").canPlayType('video/mp4; codecs="avc1.64001e"'),
+    paused:document.querySelector("#clipVideo").paused,
+    readyState:document.querySelector("#clipVideo").readyState
+  }));
   const play=await page.evaluate(async ()=>{
     const styles=["cute","cool","surprise"];
     const route=["cute","cool","surprise","cute","cool"];
@@ -123,7 +137,18 @@ async function runVariant(v){
   }));
   assert.ok(replay.hasNotes===4,"replay visibly displays mapped rhythm notes");
   assert.equal(errors.length,0,"browser errors: "+JSON.stringify(errors));
-  return {...v,engine:v.name,layout,pads:padRects,play,replay,errors};
+  // A real mobile browser touch (not only an injected pointer event).
+  await page.evaluate(()=>document.getElementById("restartBtn").click());
+  const elapsed=await page.evaluate(()=>performance.now()-Number(document.querySelector("#stage").dataset.startedAt));
+  await page.waitForTimeout(Math.max(0,820-elapsed-16));
+  const tapPad=page.locator('#choices .choice-btn[data-style="cute"]');
+  const rect=await tapPad.boundingBox();
+  await page.touchscreen.tap(rect.x+rect.width/2,rect.y+rect.height/2);
+  const touchGrade=await elFeedback();
+  async function elFeedback(){return await page.locator("#noteFeedback").textContent();}
+  assert.match(touchGrade,/PERFECT|GREAT|GOOD/,"first physical touch on note accepted");
+  process.stdout.write("PLAYCHECK TOUCH "+v.name+" "+touchGrade+"\n");
+  return {...v,engine:v.name,layout,pads:padRects,play,replay,errors,mediaState,touchGrade};
   } finally {
     await context.close().catch(()=>{});
     await browser.close().catch(()=>{});
@@ -140,7 +165,7 @@ async function runVariant(v){
       results.push(result);
       process.stdout.write("PLAYCHECK SUCCESS "+v.name+": "+JSON.stringify({
         layout:result.layout,grades:result.play.finalAccuracy,
-        ending:result.play.resultTitle,pads:result.pads
+        ending:result.play.resultTitle,pads:result.pads,mediaState:result.mediaState,touch:result.touchGrade
       })+"\n");
     }catch(e){
       process.stderr.write("PLAYCHECK FAILED "+v.name+" "+(e.stack||String(e))+"\n");
