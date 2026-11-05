@@ -37,7 +37,7 @@
     step:shot("step","FOOTWORK FEVER","neon","step","足元のリズムが揃った",3200,[
       choice("cheer","笑顔のコール","cute","cheer",215,"みんなと呼吸を合わせる"),
       choice("orbit","華麗なターン","cool","orbit",235,"ダンスで圧倒"),
-      choice("sparkle","瞬間ポーズ","surprise","sparkle",250,"ライトを操る")
+      choice("finale","クライマックス","surprise","finale",250,"ライトを操る")
     ]),
     orbit:shot("orbit","SPIN THE BEAT","neon","orbit","高速ターンの終わりが次の入口になる",3200,[
       choice("wink","キュートな着地","cute","wink",235,"ギャップが刺さる"),
