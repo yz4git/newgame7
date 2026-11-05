@@ -27,6 +27,7 @@
   let mediaBefore = "title";
   let replayPlan = [];
   let replayIndex = 0;
+  let pendingChoice = null; // buffered decision for portrait film shots
   let run = newRun();
 
   function newRun() {
@@ -110,7 +111,7 @@
       els.timingHint.textContent="結果を集計しています…";
       return;
     }
-    els.tell.textContent=node.tell;
+    els.tell.textContent=node.cutAt?"相手の動きを観察する":node.tell;
     node.choices.forEach((choice,index)=>{
       const btn=document.createElement("button");
       btn.type="button";btn.className="choice-btn "+(choice.kind==="risky"?"danger":choice.kind==="safe"?"safe":"");
@@ -128,6 +129,7 @@
   }
   function enterNode(id) {
     currentNode=graph[id] || graph.knockout;
+    pendingChoice=null;
     enteredAt=performance.now();
     els.cinema.className="cinema scene-"+currentNode.scene;
     els.fighters.removeAttribute("data-motion");
@@ -142,7 +144,7 @@
     els.timingNeedle.style.left="0%";
     els.windowLabel.className="window-label";
     els.windowLabel.textContent=currentNode.terminal?"ENDING":"READY";
-    els.timingHint.textContent=run.phase==="replay"?"あなたが選んだ映像ルートを再生中":"映像を読んで、好機に次の一手を選ぼう";
+    els.timingHint.textContent=run.phase==="replay"?"あなたが選んだ映像ルートを再生中":currentNode.cutAt?"予兆を見て、次の動きを選ぼう":"映像を読んで、好機に次の一手を選ぼう";
     renderChoices(currentNode);
     loadMedia(currentNode);
     renderHud();
@@ -159,12 +161,37 @@
     const middle=(left+right)/2;
     return Math.abs(fraction-middle) < .095?"perfect":"good";
   }
+  // MOTION BRANCH: a player chooses during the readable cue. The film changes only at a
+  // prepared stitch frame, so the choreography continues naturally after tapping.
   function choose(id,timeout=false) {
     if(run.phase!=="playing" || run.paused || currentNode.terminal)return;
     const node=currentNode;
+    if(node.cutAt && pendingChoice) return;
     const choice=node.choices.find(item=>item.id===id) || null;
-    const now=performance.now();
-    const fraction=timeout?1:clamp((now-enteredAt)/node.duration);
+    const fraction=timeout?1:clamp((performance.now()-enteredAt)/node.duration);
+    if(node.cutAt && !timeout && choice){
+      if(fraction<node.window[0]){
+        els.timingHint.textContent="相手の予兆が見えるまで待とう";
+        return; // early taps do not damage the player or create surprise QTE failures
+      }
+      if(fraction<=node.window[1]){
+        pendingChoice={choice,fraction};
+        els.windowLabel.textContent="LOCKED";
+        els.timingHint.textContent="次の動きを選択済み。映像のつなぎ目まで再生します";
+        node.choices.forEach((candidate,index)=>{
+          const button=els.choices.children[index];
+          if(button){
+            button.disabled=true;
+            if(candidate.id===id)button.classList.add("selected");
+          }
+        });
+        tone(500,.075,"triangle");
+        return;
+      }
+    }
+    commitChoice(node,choice,fraction,timeout);
+  }
+  function commitChoice(node,choice,fraction,timeout=false) {
     const rating=ratingAt(fraction,node,choice);
     const before={score:run.score,chain:run.chain,maxChain:run.maxChain,flow:run.flow,hp:run.hp};
     let next,caption;
@@ -184,7 +211,7 @@
       flash(caption,false);
     }
     run.path.push({node:node.id,choice:choice?.id||"timeout",label:choice?.label||"選択なし",
-      next,at:fraction,rating,before});
+      next,at:node.cutAt&&rating!=="miss"?node.cutAt:fraction,decisionAt:fraction,rating,before});
     run.cuts++;
     run.lastJudgment=rating;run.lastChoice=caption;
     enterNode(next);
@@ -289,11 +316,22 @@
       els.time.textContent=(elapsed/1000).toFixed(2)+"s";
       if(run.phase==="playing" && !node.terminal) {
         const ready=frac<node.window[0],late=frac>node.window[1];
+        const locked=!!pendingChoice;
         els.windowLabel.className="window-label "+(ready?"":late?"late":"open");
-        els.windowLabel.textContent=ready?"READ":late?"LATE":"CUT NOW";
-        els.timingHint.textContent=ready?"敵の予兆を見極めよう":late?"好機を逃した！ リテイクも可能":"いま選べば技がつながる！";
+        els.windowLabel.textContent=locked?"LOCKED":ready?"WATCH":late?"LATE":node.cutAt?"BRANCH":"CUT NOW";
+        if(node.cutAt){
+          if(frac >= (node.cueAt ?? 0))els.tell.textContent=node.tell;
+          els.timingHint.textContent=locked?"選択した動きへ、自然な接続点で切り替えます":
+            ready?"敵の肩・拳・重心を見よう":late?"選択可能時間を過ぎた":"今の動きに合う次の展開を選ぼう";
+        }else{
+          els.timingHint.textContent=ready?"敵の予兆を見極めよう":late?"好機を逃した！ リテイクも可能":"いま選べば技がつながる！";
+        }
       }
-      if(run.phase==="playing" && elapsed>=node.duration){
+      if(run.phase==="playing" && node.cutAt && pendingChoice && frac>=node.cutAt){
+        const selected=pendingChoice;
+        pendingChoice=null;
+        commitChoice(node,selected.choice,selected.fraction,false);
+      } else if(run.phase==="playing" && elapsed>=node.duration){
         if(node.terminal)finish(node.terminal);
         else choose(null,true);
       } else if(run.phase==="replay") {
