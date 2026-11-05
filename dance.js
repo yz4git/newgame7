@@ -72,6 +72,7 @@
     els.rivalFans.textContent=run.rivalFans.toLocaleString("ja-JP");
     els.supportFill.style.width=(100*run.heroFans/Math.max(1,run.heroFans+run.rivalFans)).toFixed(1)+"%";
     els.stage.classList.toggle("rival-lead",run.rivalFans>run.heroFans);
+    els.stage.classList.toggle("fever",run.chain>=8);
     els.round.textContent=run.finished?"FINAL SHOW":("BEAT "+String(Math.min(data.maxBeats,run.beat+1)).padStart(2,"0")+" / 05");
     els.chainText.textContent="COMBO ×"+run.chain;
     els.hypeFill.style.width=run.hype+"%";
@@ -211,12 +212,12 @@
     const base={perfect:93,great:68,good:42}[grade]||0;
     const moodBonus=style===mood.style?24:0;
     const freestyleBonus=n.kind==="freestyle"?52:0;
-    const fans=base+moodBonus+freestyleBonus+Math.min(54,run.chain*3);
+    const fans=base+moodBonus+freestyleBonus+Math.min(54,run.chain*3)+(run.chain>=7?33:0);
     run.heroFans+=fans;run.score+=fans;
     run.accuracy[grade]++;run.totalNotes++;
     run.chain++;run.bestChain=Math.max(run.bestChain,run.chain);
     run.hype=clamp(run.hype+(grade==="perfect"?7:grade==="great"?5:3));
-    feedback((grade==="perfect"?"PERFECT!":grade==="great"?"GREAT!":"GOOD!")+" +"+fans);
+    feedback((run.chain>=8?"FEVER ":"")+(grade==="perfect"?"PERFECT!":grade==="great"?"GREAT!":"GOOD!")+" +"+fans);
     if(n.element)n.element.classList.add("hit");
     if(n.kind==="freestyle"){
       const action=current.choices.find(x=>x.style===style);
