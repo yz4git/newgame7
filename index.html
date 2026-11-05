@@ -142,6 +142,9 @@
       <label for="clipEntry">どの演出からつながるか</label><select id="clipEntry" class="field"><option value="">共通の映像</option></select>
       <label for="clipFile">GIF / MP4 / WebM / WebP</label><input id="clipFile" class="field" type="file" accept="video/mp4,video/webm,image/gif,image/webp,video/*">
       <div class="asset-state" id="assetState">未割当：アニマティック表示</div>
+      <label for="packFile">クリップパックを一括読み込み（ZIP）</label>
+      <input id="packFile" class="field" type="file" accept=".zip,application/zip,application/x-zip-compressed">
+      <div id="packState" class="pack-state" role="status">無圧縮ZIPなら4本まとめて読み込めます。</div>
       <button id="clearClipBtn" type="button" class="secondary-btn">この割当を解除</button>
       <button id="closeLibraryBtn" type="button" class="primary-btn">完了</button>
       <small>一時割当はブラウザー再読込で消えます。ゲームに恒久登録する場合は assets/manifest.json を編集します。</small>
@@ -150,6 +153,7 @@
   <footer class="footer-label">KAWAII MOTION · DANCE FILM PROTOTYPE</footer>
 </main>
 <script src="dance-graph.js"></script>
+<script src="clip-pack.js"></script>
 <script src="dance.js"></script>
 </body>
 </html>
