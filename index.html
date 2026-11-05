@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#100b21">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="かわいい・クール・サプライズ！ 実写風アニメーションをつなぎ、ファンを獲得する新しいダンスバトル。">
-  <title>KAWAII MOTION — ファン獲得ダンスバトル</title>
+  <meta name="description" content="かわいい・クール・サプライズ！ 3つのレーンでリズムを刻み、動画のダンスをつなげるファン獲得音楽ゲーム。">
+  <title>KAWAII MOTION — リズムでファン獲得バトル</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="assets/kawaii-icon.svg">
   <link rel="stylesheet" href="dance.css">
@@ -40,6 +40,15 @@
     <div id="videoLayer" class="video-layer">
       <video id="clipVideo" muted playsinline webkit-playsinline preload="metadata"></video>
       <img id="clipGif" alt="選択したダンス映像">
+    </div>
+    <div id="noteHighway" class="note-highway" aria-label="3レーンのリズムノーツ">
+      <div class="note-lane lane-cute"><span>♡</span></div>
+      <div class="note-lane lane-cool"><span>✦</span></div>
+      <div class="note-lane lane-surprise"><span>★</span></div>
+      <div class="note-target-line" aria-hidden="true"></div>
+      <div id="noteContainer" class="note-container" aria-hidden="true"></div>
+      <div class="target-labels" aria-hidden="true"><span>♡</span><span>✦</span><span>★</span></div>
+      <div class="note-feedback" id="noteFeedback" aria-live="polite">READY!</div>
     </div>
     <div class="performers" id="performers" aria-hidden="true">
       <div class="performer rival" id="rivalFigure">
@@ -85,13 +94,13 @@
     </div>
     <p id="audienceTell" class="crowd-tell">観客がハートのペンライトを振っている</p>
     <div class="rhythm-box">
-      <div class="rhythm-head"><span id="cueLabel">WATCH THE CROWD</span><span id="secondsLeft">0.0s</span></div>
+      <div class="rhythm-head"><span id="cueLabel">118 BPM · READY</span><span id="secondsLeft">0.0s</span></div>
       <div class="rhythm-track"><div class="rhythm-window" id="rhythmWindow"></div><div class="rhythm-head-pointer" id="rhythmPointer"></div></div>
     </div>
-    <div class="choice-heading"><span>NEXT PERFORMANCE</span><span id="chainText">CHAIN ×0</span></div>
+    <div class="choice-heading"><span>♫ BEAT TAP — 3 LANES</span><span id="chainText">COMBO ×0</span></div>
     <div id="choices" class="choices" aria-label="次のダンス演出"></div>
     <div class="hype-row"><span>✦ CROWD HYPE</span><div class="hype-track"><div id="hypeFill"></div></div><strong id="hypeText">0%</strong></div>
-    <div class="hint" id="gameHint">観客の反応を見て選択してね</div>
+    <div class="hint" id="gameHint">流れるノーツが判定ラインに来たら同じ色をタップ！</div>
     <div class="utility-row">
       <button id="retakeBtn" type="button" class="utility-btn">↶ RETAKE <span id="retakesLeft">02</span></button>
       <button id="pauseBtn" type="button" class="utility-btn">Ⅱ PAUSE</button>
@@ -105,11 +114,11 @@
       <div class="logo-sparkle">✿ ♡ ✦</div>
       <h1>KAWAII<br><em>MOTION</em></h1>
       <p class="title-sub">踊って、魅せて、ファンを奪え！</p>
-      <p>映像の次の展開を選び、桜華のダンスをつないで、レイナとのファン獲得バトルに挑戦。</p>
+      <p>流れてくる♡ ✦ ★のノーツを拍に合わせてタップ。最後の虹色ノーツでダンスを選び、レイナからファンを奪おう！</p>
       <div class="title-pill"><span>♡ CUTE</span><span>✦ COOL</span><span>★ SURPRISE</span></div>
       <button id="startBtn" type="button" class="primary-btn">▶ STAGE START</button>
       <button id="titleLibraryBtn" type="button" class="secondary-btn">GIF・動画を割り当てる</button>
-      <small>v1.0 パフォーマンス試作版：映像未登録時はCSSアニマティックで再生されます。</small>
+      <small>RHYTHM EDITION · 118 BPM · 5ラウンド · iPhone縦画面対応。音声はタップ開始後に再生されます。</small>
     </div>
   </section>
   <section id="resultOverlay" class="overlay" aria-label="バトル結果">
@@ -123,6 +132,7 @@
         <div><small>レイナ</small><strong id="finalRival">0</strong><small>FANS</small></div>
         <div><small>BEST CHAIN</small><strong id="finalChain">×0</strong><small>LINKS</small></div>
       </div>
+      <div id="finalAccuracy" class="result-accuracy">PERFECT 0 · GREAT 0 · GOOD 0 · MISS 0</div>
       <div id="reel" class="reel" aria-label="選択したダンス映像"></div>
       <button id="replayBtn" type="button" class="primary-btn">▶ PERFORMANCE REPLAY</button>
       <div class="twin-actions"><button id="resultRetakeBtn" type="button" class="secondary-btn">↶ RETAKE</button><button id="restartBtn" type="button" class="secondary-btn">もう一度</button></div>
@@ -154,6 +164,8 @@
 </main>
 <script src="dance-graph.js"></script>
 <script src="clip-pack.js"></script>
+<script src="rhythm-core.js"></script>
+<script src="rhythm-audio.js"></script>
 <script src="dance.js"></script>
 </body>
 </html>
