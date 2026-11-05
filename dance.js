@@ -67,6 +67,7 @@
     els.heroFans.textContent=run.heroFans.toLocaleString("ja-JP");
     els.rivalFans.textContent=run.rivalFans.toLocaleString("ja-JP");
     els.supportFill.style.width=(100*run.heroFans/Math.max(1,run.heroFans+run.rivalFans)).toFixed(1)+"%";
+    els.stage.classList.toggle("rival-lead",run.rivalFans>run.heroFans);
     els.round.textContent=run.finished?"FINAL SHOW":("BEAT "+String(Math.min(data.maxBeats,run.beat+1)).padStart(2,"0")+" / 05");
     els.chainText.textContent="CHAIN ×"+run.chain;
     els.hypeFill.style.width=run.hype+"%";
@@ -226,7 +227,7 @@
       caption=timeout?"NO APPEAL":"MISSED MOMENT";
       note(190,.18,"sawtooth");
     }
-    const rivalGain=205+(rival===mood.style?112:37)+(run.beat%2?19:0);
+    const rivalGain=300+(rival===mood.style?125:55)+(run.beat%2?24:0);
     run.rivalFans+=rivalGain;
     run.beat++;
     if(run.beat>=data.maxBeats){
