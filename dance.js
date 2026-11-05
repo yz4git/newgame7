@@ -287,6 +287,7 @@
   function enter(id,entry=null){
     current=shots[id]||shots.opening;incoming=entry;pending=null;
     enterAt=performance.now();
+    els.stage.dataset.startedAt=String(enterAt); // playcheck clock: browser note synchronization
     segmentStart=run.phase==="playing"&&!run.finished&&!current.terminal?snapshot():null;
     sceneRhythm=!current.terminal&&!run.finished?
       {notes:rhythm.chart(current,readMood().style,data.rivalStyles[Math.min(run.beat,data.maxBeats-1)],run.beat),events:[],replayCursor:0}:null;
