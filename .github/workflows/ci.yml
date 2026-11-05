@@ -15,6 +15,8 @@ jobs:
           node-version: '22'
       - name: KAWAII MOTION full gameplay
         run: node tests/dance.test.cjs
+      - name: KAWAII MOTION ZIP clip pack
+        run: node tests/clip-pack.test.cjs
       - name: Legacy MOTION CHAIN graph integrity
         run: node tests/graph.test.cjs
       - name: Legacy MOTION CHAIN smoke test
