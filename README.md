@@ -49,6 +49,7 @@ H.264 MP4、ポートレートの安全領域、明確な開始/終了姿勢を�
 - `dance.js` — ゲームロジック、ファン配点、入力・リテイク・結果・リプレイ。
 - `assets/manifest.json` — MP4/GIFの割当。
 - [新ゲーム仕様書](docs/KAWAII_MOTION_SPEC.md)。
+- [ダンスクリップ用の字コンテ・撮影指示](docs/KAWAII_MOTION_STORYBOARD.md)。
 - `tests/dance.test.cjs` — Node上での分岐・配点・リプレイ等の検証。
 
 ## 動画・絵コンテ制作方針
