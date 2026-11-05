@@ -4,6 +4,8 @@
   const data=window.KAWAII_GRAPH;
   if(!data)return;
   const shots=data.shots;
+  const rhythm=window.KAWAII_RHYTHM;
+  const beatSound=window.KAWAII_BEAT;
   const $=id=>document.getElementById(id);
   const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,n));
   const els={
@@ -15,27 +17,29 @@
     cueLabel:$("cueLabel"),secondsLeft:$("secondsLeft"),rhythmWindow:$("rhythmWindow"),rhythmPointer:$("rhythmPointer"),
     chainText:$("chainText"),choices:$("choices"),hypeFill:$("hypeFill"),hypeText:$("hypeText"),
     hint:$("gameHint"),fanPopup:$("fanPopup"),retakesLeft:$("retakesLeft"),retake:$("retakeBtn"),
-    clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),packFile:$("packFile"),packState:$("packState"),assetState:$("assetState"),reel:$("reel")
+    clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),packFile:$("packFile"),packState:$("packState"),assetState:$("assetState"),reel:$("reel"),
+    notes:$("noteContainer"),noteFeedback:$("noteFeedback"),noteHighway:$("noteHighway"),finalAccuracy:$("finalAccuracy")
   };
   const overlays=[els.title,els.result,els.pause,els.library];
   const runtimeMedia=new Map();
   let manifest={},mediaToken=0,enterAt=performance.now(),pauseStarted=0;
   let current=shots.opening,incoming=null,pending=null,libraryReturn="title",replaySteps=[],replayAt=0;
-  let audio=null,soundOn=true;
+  let audio=null,soundOn=true,sceneRhythm=null,segmentStart=null;
   let run=resetRun();
 
   function resetRun(){
     return {phase:"title",paused:false,beat:0,heroFans:650,rivalFans:850,hype:18,
       chain:0,bestChain:0,lastStyle:null,stylesUsed:[],score:0,retakes:2,
-      path:[],finished:false,ending:null,lastRating:""};
+      path:[],finished:false,ending:null,lastRating:"",accuracy:{perfect:0,great:0,good:0,miss:0},totalNotes:0};
   }
   function snapshot(){
     return {beat:run.beat,heroFans:run.heroFans,rivalFans:run.rivalFans,
       hype:run.hype,chain:run.chain,bestChain:run.bestChain,lastStyle:run.lastStyle,
-      stylesUsed:[...run.stylesUsed],score:run.score,finished:run.finished,ending:run.ending};
+      stylesUsed:[...run.stylesUsed],score:run.score,finished:run.finished,ending:run.ending,
+      accuracy:{...run.accuracy},totalNotes:run.totalNotes};
   }
   function restore(s){
-    Object.assign(run,{...s,stylesUsed:[...s.stylesUsed]});
+    Object.assign(run,{...s,stylesUsed:[...s.stylesUsed],accuracy:{...s.accuracy}});
   }
   function show(overlay){
     overlays.forEach(el=>el.classList.toggle("visible",el===overlay));
@@ -69,7 +73,7 @@
     els.supportFill.style.width=(100*run.heroFans/Math.max(1,run.heroFans+run.rivalFans)).toFixed(1)+"%";
     els.stage.classList.toggle("rival-lead",run.rivalFans>run.heroFans);
     els.round.textContent=run.finished?"FINAL SHOW":("BEAT "+String(Math.min(data.maxBeats,run.beat+1)).padStart(2,"0")+" / 05");
-    els.chainText.textContent="CHAIN ×"+run.chain;
+    els.chainText.textContent="COMBO ×"+run.chain;
     els.hypeFill.style.width=run.hype+"%";
     els.hypeText.textContent=run.hype+"%";
     els.retakesLeft.textContent=String(run.retakes).padStart(2,"0");
@@ -135,25 +139,154 @@
     if(current.terminal || run.finished || run.phase==="replay"){
       const msg=document.createElement("div");
       msg.className="choice-finished";
-      msg.textContent=run.phase==="replay"?"▶ あなたのダンスを再生中":current.terminal?"✦ RESULT SHOW":"✿ ラストパフォーマンス再生中";
-      msg.style.cssText="grid-column:1/-1;display:grid;place-items:center;color:#efc8e7;font-size:12px;font-weight:800;letter-spacing:.07em";
+      msg.textContent=run.phase==="replay"?"♫ あなたのリズムをリプレイ中":current.terminal?"✦ RESULT SHOW":"✿ フィナーレ再生中";
+      msg.style.cssText="grid-column:1/-1;display:grid;place-items:center;color:#efc8e7;font-size:12px;font-weight:800";
       els.choices.append(msg);return;
     }
     for(const action of current.choices){
       const button=document.createElement("button");button.type="button";
       button.className="choice-btn";button.dataset.style=action.style;
-      button.setAttribute("aria-label",action.label+"・"+action.description);
+      button.setAttribute("aria-label",action.symbol+" "+action.label+"のリズムレーン");
       const icon=document.createElement("span");icon.className="symbol";icon.textContent=action.symbol;
       const title=document.createElement("strong");title.textContent=action.label;
-      const info=document.createElement("small");info.textContent=action.description;
+      const info=document.createElement("small");info.textContent=action.style==="cute"?"CUTE":action.style==="cool"?"COOL":"SURPRISE";
       button.append(icon,title,info);
-      button.addEventListener("click",()=>choose(action.id));
+      let pointerTime=-1e6;
+      button.addEventListener("pointerdown",e=>{
+        if(e && e.preventDefault)e.preventDefault();
+        pointerTime=performance.now();
+        choose(action.id);
+      });
+      button.addEventListener("click",()=>{
+        if(performance.now()-pointerTime>120)choose(action.id);
+      });
       els.choices.append(button);
+    }
+  }
+  function resetNoteHighway(){
+    els.notes.replaceChildren();
+    const active=!!(sceneRhythm&&sceneRhythm.notes.length);
+    els.noteHighway.style.display=active?"grid":"none";
+    if(!active)return;
+    for(const n of sceneRhythm.notes){
+      const token=document.createElement("div");
+      token.className="note-token"+(n.kind==="freestyle"?" freestyle":"");
+      if(n.style)token.dataset.style=n.style;
+      token.textContent=n.kind==="freestyle"?"★ FREE STYLE — 好きな色！":
+        data.styles[n.style].icon;
+      n.element=token;
+      els.notes.append(token);
+    }
+  }
+  function moveNotes(elapsed){
+    if(!sceneRhythm)return;
+    for(const n of sceneRhythm.notes){
+      if(!n.element)continue;
+      const progress=rhythm.progress(n,elapsed);
+      n.element.style.top=(10+progress*69)+"%";
+      n.element.style.display=n.status!=="waiting"||progress<-.16||progress>1.24?"none":"grid";
+    }
+  }
+  function feedback(label,bad=false){
+    els.noteFeedback.textContent=label;
+    els.noteFeedback.className="note-feedback"+(bad?" bad":"");
+    void els.noteFeedback.offsetWidth;
+    els.noteFeedback.classList.add("burst");
+  }
+  function recordRhythmEvent(kind,n,elapsed,extra={}){
+    if(!sceneRhythm)return;
+    sceneRhythm.events.push({kind,id:n.id,t:Math.max(0,elapsed),...extra,state:snapshot()});
+  }
+  function missedNote(n,elapsed,wrong=false){
+    run.accuracy.miss++;run.totalNotes++;
+    run.chain=0;run.hype=clamp(run.hype-10);
+    if(n.element)n.element.classList.add(wrong?"wrong":"miss");
+    feedback(wrong?"WRONG LANE":"MISS",true);
+    recordRhythmEvent("miss",n,elapsed,{style:wrong?n.chosen:null});
+    if(run.phase==="playing")note(180,.09,"triangle");
+    display();
+  }
+  function hitNote(n,style,grade,elapsed){
+    const mood=readMood();
+    const base={perfect:93,great:68,good:42}[grade]||0;
+    const moodBonus=style===mood.style?24:0;
+    const freestyleBonus=n.kind==="freestyle"?52:0;
+    const fans=base+moodBonus+freestyleBonus+Math.min(54,run.chain*3);
+    run.heroFans+=fans;run.score+=fans;
+    run.accuracy[grade]++;run.totalNotes++;
+    run.chain++;run.bestChain=Math.max(run.bestChain,run.chain);
+    run.hype=clamp(run.hype+(grade==="perfect"?7:grade==="great"?5:3));
+    feedback((grade==="perfect"?"PERFECT!":grade==="great"?"GREAT!":"GOOD!")+" +"+fans);
+    if(n.element)n.element.classList.add("hit");
+    if(n.kind==="freestyle"){
+      const action=current.choices.find(x=>x.style===style);
+      if(action){
+        pending={action,fraction:elapsed/current.duration,grade};
+        els.hint.textContent=action.label+"へダンスを接続！";
+        current.choices.forEach((a,i)=>{
+          const b=els.choices.children[i];
+          if(b){b.disabled=true;if(a.id===action.id)b.classList.add("selected");}
+        });
+      }
+    }
+    recordRhythmEvent("hit",n,elapsed,{style,grade,fans});
+    note(grade==="perfect"?880:grade==="great"?690:510,.09,"triangle");
+    display();
+  }
+  function choose(id){
+    if(run.phase!=="playing"||run.paused||run.finished||current.terminal||pending||!sceneRhythm)return;
+    const action=current.choices.find(a=>a.id===id);
+    if(!action)return;
+    const elapsed=performance.now()-enterAt;
+    const result=rhythm.tap(sceneRhythm.notes,action.style,elapsed);
+    if(result.type==="ignored"){
+      els.hint.textContent="光るノーツがラインに来たらタップ！";
+      return;
+    }
+    if(result.type==="wrong"){
+      missedNote(result.note,elapsed,true);
+      return;
+    }
+    hitNote(result.note,action.style,result.grade,elapsed);
+  }
+  function resolveRhythm(elapsed){
+    if(!sceneRhythm)return;
+    for(const n of sceneRhythm.notes){
+      if(!n.rivalAwarded && elapsed>=n.at){
+        n.rivalAwarded=true;
+        const rival=data.rivalStyles[Math.min(run.beat,data.maxBeats-1)];
+        const value=73+(rival===readMood().style?15:0)+(run.beat%2?6:0);
+        run.rivalFans+=value;
+        recordRhythmEvent("rival",n,n.at,{fans:value});
+      }
+    }
+    for(const n of rhythm.expire(sceneRhythm.notes,elapsed))missedNote(n,n.at+rhythm.WINDOW+1);
+    display();
+  }
+  function replayRhythm(elapsed){
+    if(!sceneRhythm)return;
+    const step=replaySteps[replayAt];
+    if(!step || step.node!==current.id)return;
+    while(sceneRhythm.replayCursor<(step.hits?.length||0)){
+      const event=step.hits[sceneRhythm.replayCursor];
+      if(event.t>elapsed)break;
+      sceneRhythm.replayCursor++;
+      const n=sceneRhythm.notes[event.id];
+      if(n){n.status=event.kind==="hit"?"hit":event.kind==="miss"?"miss":n.status;}
+      restore(event.state);
+      if(event.kind==="hit")feedback((event.grade||"good").toUpperCase()+"!");
+      if(event.kind==="miss")feedback("MISS",true);
+      display();
     }
   }
   function enter(id,entry=null){
     current=shots[id]||shots.opening;incoming=entry;pending=null;
     enterAt=performance.now();
+    segmentStart=run.phase==="playing"&&!run.finished&&!current.terminal?snapshot():null;
+    sceneRhythm=!current.terminal&&!run.finished?
+      {notes:rhythm.chart(current,readMood().style,data.rivalStyles[Math.min(run.beat,data.maxBeats-1)],run.beat),events:[],replayCursor:0}:null;
+    beatSound.start();
+    resetNoteHighway();
     els.stage.dataset.scene=current.scene;
     els.stage.dataset.motion="";
     void els.stage.offsetWidth;
@@ -168,68 +301,42 @@
     els.cueLabel.textContent=current.terminal?"RESULT":run.finished?"FINAL POSE":"WATCH THE CROWD";
     els.cueLabel.className="";
     els.secondsLeft.textContent=(current.duration/1000).toFixed(1)+"s";
-    els.hint.textContent=run.finished?"最後のダンスに注目！":"観客の反応を見て次の演出を決めよう";
+    els.hint.textContent=run.finished?"最後のダンスに注目！":"ノーツと同じ色のボタンをリズムでタップ！ 虹色は自由選択";
     loadMedia(current);renderChoices();display();
   }
   function begin(){
     run=resetRun();replaySteps=[];replayAt=0;run.phase="playing";
+    beatSound.setEnabled(soundOn);
     show(null);enter("opening");note(590,.12,"triangle");
-  }
-  function judge(fraction,node){
-    if(fraction<node.window[0] || fraction>node.window[1])return "miss";
-    return Math.abs(fraction-(node.window[0]+node.window[1])/2)<.09?"perfect":"good";
-  }
-  function choose(id){
-    if(run.phase!=="playing"||run.paused||run.finished||current.terminal||pending)return;
-    const action=current.choices.find(a=>a.id===id);
-    if(!action)return;
-    const frac=clamp((performance.now()-enterAt)/current.duration,0,1);
-    if(frac<current.window[0]){
-      els.hint.textContent="観客のサインが揃うまで、もう少し待とう";
-      return;
-    }
-    if(frac>current.window[1]){
-      els.hint.textContent="今のカットはもう遅い。次の流れに注目";
-      return;
-    }
-    pending={action,fraction:frac};
-    els.cueLabel.className="locked";els.cueLabel.textContent="LOCKED";
-    els.hint.textContent="選択完了！ 映像の自然な接続点で切り替わります";
-    current.choices.forEach((a,i)=>{
-      const b=els.choices.children[i];
-      if(b){b.disabled=true;if(a.id===id)b.classList.add("selected");}
-    });
-    note(690,.07,"sine");
   }
   function finishChoice(action,fraction,timeout=false){
     const node=current;
-    const prior=snapshot();
-    const mood=readMood(),rival=data.rivalStyles[run.beat];
-    const rating=action?judge(fraction,node):"miss";
-    let gain=0,transfer=0,match=false,fresh=false,next="freeze",caption="NO APPEAL";
-    if(action && rating!=="miss"){
+    const prior=segmentStart||snapshot();
+    const mood=readMood(),rival=data.rivalStyles[Math.min(run.beat,data.maxBeats-1)];
+    const rating=action?(pending?.grade||"good"):"miss";
+    let gain=0,transfer=0,match=false,fresh=false,next="freeze";
+    if(action&&rating!=="miss"){
       match=action.style===mood.style;
       fresh=run.lastStyle!==action.style;
-      const nextChain=match?(fresh?run.chain+1:Math.max(1,run.chain)):0;
-      gain=Math.max(25,Math.round(
-        action.base+(match?165:0)+(rating==="perfect"?95:40)
-        +(fresh?64:-118)+(match?nextChain*19:0)+run.hype*.23
+      const goodHits=sceneRhythm?.notes.filter(n=>n.status==="hit").length||0;
+      gain=Math.max(20,Math.round(
+        action.base*.67+(match?135:0)+(fresh?65:-70)
+        +Math.min(72,goodHits*17)+run.hype*.25
       ));
-      transfer=match?Math.min(run.rivalFans,44+Math.min(3,nextChain)*12):0;
-      run.heroFans+=gain+transfer;run.rivalFans=Math.max(0,run.rivalFans-transfer);
-      run.chain=nextChain;run.bestChain=Math.max(run.chain,run.bestChain);
-      run.hype=clamp(run.hype+(match?19:-9)+(fresh?9:-14)+(rating==="perfect"?7:0));
+      transfer=match?Math.min(run.rivalFans,45+Math.min(100,run.chain*3)):0;
+      run.heroFans+=gain+transfer;
+      run.rivalFans=Math.max(0,run.rivalFans-transfer);
+      run.score+=gain+transfer;
+      run.hype=clamp(run.hype+(match?13:-8)+(fresh?6:-10));
       run.lastStyle=action.style;
       if(!run.stylesUsed.includes(action.style))run.stylesUsed.push(action.style);
-      run.score+=gain+transfer;
-      next=action.next;caption=rating==="perfect"?"PERFECT APPEAL":"GREAT APPEAL";
-      note(rating==="perfect"?910:680,.14,"triangle");
+      next=action.next;
+      note(rating==="perfect"?970:700,.15,"triangle");
     }else{
-      run.chain=0;run.hype=clamp(run.hype-25);run.lastStyle=null;
-      caption=timeout?"NO APPEAL":"MISSED MOMENT";
-      note(190,.18,"sawtooth");
+      run.chain=0;run.hype=clamp(run.hype-15);run.lastStyle=null;
+      note(175,.16,"triangle");
     }
-    const rivalGain=300+(rival===mood.style?125:55)+(run.beat%2?24:0);
+    const rivalGain=86+(rival===mood.style?23:0)+(run.beat%2?8:0);
     run.rivalFans+=rivalGain;
     run.beat++;
     if(run.beat>=data.maxBeats){
@@ -238,11 +345,13 @@
       run.finished=true;
     }
     const after=snapshot();
-    run.path.push({node:node.id,choice:action?.id||"timeout",label:action?.label||"見送り",
-      next,decisionAt:fraction,at:action && rating!=="miss"?node.cutAt:1,
-      rating,match,fresh,gain,transfer,rivalGain,before:prior,after});
+    run.path.push({node:node.id,choice:action?.id||"timeout",
+      label:action?.label||"フィニッシュ失敗",next,decisionAt:fraction,
+      at:action?node.cutAt:1,rating,match,fresh,gain,transfer,rivalGain,
+      hits:sceneRhythm?.events.map(e=>({...e,state:{...e.state,accuracy:{...e.state.accuracy},stylesUsed:[...e.state.stylesUsed]}}))||[],
+      before:prior,after});
     run.lastRating=rating;
-    popup(action && rating!=="miss"?"+"+(gain+transfer)+" FANS!":"RIVAL +"+rivalGain);
+    popup(action?"+"+(gain+transfer)+" FANS!":"NO FINISH");
     enter(next,{from:node.id,choice:action?.id||"timeout"});
   }
   function retake(){
@@ -267,12 +376,13 @@
     $("finalHero").textContent=run.heroFans.toLocaleString("ja-JP");
     $("finalRival").textContent=run.rivalFans.toLocaleString("ja-JP");
     $("finalChain").textContent="×"+run.bestChain;
+    els.finalAccuracy.textContent="PERFECT "+run.accuracy.perfect+" · GREAT "+run.accuracy.great+" · GOOD "+run.accuracy.good+" · MISS "+run.accuracy.miss;
     els.reel.replaceChildren();
     run.path.forEach((step,i)=>{
       const row=document.createElement("div");
-      row.textContent=String(i+1).padStart(2,"0")+
-        " "+step.label+" / "+step.rating.toUpperCase()+
-        (step.match?" ♡ 人気ジャンル！":"")+" +"+(step.gain+step.transfer);
+      row.textContent=String(i+1).padStart(2,"0")+" "+step.label+
+        " / "+(step.hits?.filter(e=>e.kind==="hit").length||0)+" HIT"+
+        (step.match?" ♡ 応援ボーナス":"")+" +"+(step.gain+step.transfer);
       els.reel.append(row);
     });
     $("replayBtn").disabled=run.path.length===0;
@@ -280,7 +390,7 @@
   }
   function endGame(){
     run.phase="result";run.paused=false;
-    stopMedia();renderResult();
+    stopMedia();beatSound.suspend();renderResult();
     if(run.ending==="win")note(920,.23,"triangle");
     try{
       const best=Number(localStorage.getItem("kawaii-motion-best")||0);
@@ -289,7 +399,7 @@
   }
   function startReplay(){
     if(run.path.length===0)return;
-    replaySteps=run.path.map(s=>({...s,after:{...s.after,stylesUsed:[...s.after.stylesUsed]}}));
+    replaySteps=run.path.map(s=>({...s,after:{...s.after,accuracy:{...s.after.accuracy},stylesUsed:[...s.after.stylesUsed]},hits:(s.hits||[]).map(e=>({...e,state:{...e.state,accuracy:{...e.state.accuracy},stylesUsed:[...e.state.stylesUsed]}}))}));
     replayAt=0;
     run.phase="replay";run.paused=false;run.finished=false;
     // Keep the recorded ending and immutable route; reset counters for a faithful replay.
@@ -299,16 +409,16 @@
   function pause(){
     if(!["playing","replay"].includes(run.phase)||run.paused)return;
     run.paused=true;pauseStarted=performance.now();
-    els.video.pause();show(els.pause);
+    els.video.pause();beatSound.suspend();show(els.pause);
   }
   function resume(){
     if(!run.paused)return;
     enterAt+=performance.now()-pauseStarted;run.paused=false;
-    show(null);
+    beatSound.resume();show(null);
     if(els.video.src)els.video.play().catch(()=>{});
   }
   function home(){
-    run.phase="title";run.paused=false;stopMedia();show(els.title);
+    run.phase="title";run.paused=false;stopMedia();beatSound.suspend();show(els.title);
   }
   function populateEntries(){
     const id=els.clipNode.value;
@@ -397,7 +507,7 @@
   function openLibrary(){
     libraryReturn=run.phase;
     if(["playing","replay"].includes(run.phase)&&!run.paused){
-      run.paused=true;pauseStarted=performance.now();els.video.pause();
+      run.paused=true;pauseStarted=performance.now();els.video.pause();beatSound.suspend();
     }
     show(els.library);updateAssetState();
   }
@@ -406,7 +516,7 @@
     if(libraryReturn==="result"){show(els.result);return;}
     show(null);
     if(run.paused){
-      enterAt+=performance.now()-pauseStarted;run.paused=false;
+      enterAt+=performance.now()-pauseStarted;run.paused=false;beatSound.resume();
       if(els.video.src)els.video.play().catch(()=>{});
     }
   }
@@ -415,22 +525,26 @@
       const elapsed=now-enterAt,node=current,frac=clamp(elapsed/node.duration,0,1);
       els.rhythmPointer.style.left=(frac*100)+"%";
       els.secondsLeft.textContent=(Math.max(0,node.duration-elapsed)/1000).toFixed(1)+"s";
-      if(run.phase==="playing" && !run.finished && !node.terminal){
-        const open=frac>=node.window[0]&&frac<=node.window[1];
-        els.cueLabel.textContent=pending?"LOCKED":open?"APPEAL NOW":frac<node.window[0]?"WATCH THE CROWD":"LAST MOMENT";
-        els.cueLabel.className=pending?"locked":open?"open":"";
-        if(!pending){
-          els.hint.textContent=open?"観客に合ったアピールを選ぼう！":
-            frac<node.window[0]?"ペンライトとライバルを観察しよう":"入力できるタイミングを逃した";
-        }
-        if(frac>=node.cueAt)els.audienceTell.textContent=readMood().tell;
+      beatSound.schedule(elapsed);
+      moveNotes(elapsed);
+      if(!run.finished&&!node.terminal){
+        if(run.phase==="playing")resolveRhythm(elapsed);
+        else replayRhythm(elapsed);
+        const next=sceneRhythm?.notes.find(n=>n.status==="waiting");
+        const requested=next?.kind==="freestyle"?"★ FREE STYLE!":
+          next?.style?data.styles[next.style].icon+" TAP ON BEAT":"FINISH";
+        els.cueLabel.textContent=pending?"DANCE LOCKED":requested;
+        els.cueLabel.className=pending?"locked":next?"open":"";
+        if(!pending)els.hint.textContent=next?.kind==="freestyle"?
+          "虹色ノーツは自由！次のダンスを好きなボタンで選ぼう":
+          "レーンを流れるノーツが光る線に来たら同じ色をタップ";
       }
       if(run.phase==="playing"){
         if(node.terminal && elapsed>=node.duration)endGame();
         else if(run.finished && elapsed>=node.duration){
           enter(run.ending,{from:node.id,choice:"final"});
         }else if(!run.finished&&!node.terminal&&pending&&frac>=node.cutAt){
-          const selected=pending;pending=null;
+          const selected=pending;
           finishChoice(selected.action,selected.fraction);
         }else if(!run.finished&&!node.terminal&&elapsed>=node.duration){
           finishChoice(null,1,true);
@@ -471,6 +585,7 @@
   $("soundBtn").addEventListener("click",()=>{
     soundOn=!soundOn;$("soundBtn").textContent=soundOn?"♪":"♩";
     $("soundBtn").setAttribute("aria-label",soundOn?"サウンドをオフ":"サウンドをオン");
+    beatSound.setEnabled(soundOn);
     if(soundOn)note(640,.09);
   });
   document.addEventListener("visibilitychange",()=>{
