@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#080d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="MOTION CHAIN — 映像をつなぎ、格闘アクション映画を操作する。">
+  <title>GIF FIGHTERS : MOTION CHAIN</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main id="app" class="app">
+  <div class="film-grain" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◈</span><div><b>GIF FIGHTERS</b><small>MOTION CHAIN / ACT 01</small></div></div>
+    <button id="muteButton" class="icon-button" aria-label="サウンド切り替え">♪</button>
+  </header>
+
+  <section id="screen" class="screen" aria-label="シネマティックバトル">
+    <div class="cinema scene-sakura" id="cinema">
+      <div class="media-surface" id="mediaSurface">
+        <video id="clipVideo" muted playsinline webkit-playsinline preload="auto"></video>
+        <img id="clipGif" alt="シーンのアニメーション">
+      </div>
+      <div class="scene-depth">
+        <div class="moon"></div><div class="far-city"></div><div class="torii"></div><div class="floor"></div>
+        <div class="fighters" id="fighters">
+          <div class="actor enemy"><div class="shadow"></div><div class="body"><div class="scarf"></div><div class="head"><div class="hair"></div></div><div class="torso"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div></div></div>
+          <div class="actor hero"><div class="shadow"></div><div class="body"><div class="scarf"></div><div class="head"><div class="hair"></div></div><div class="torso"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div></div></div>
+        </div>
+        <div class="petals" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="cinema-shade"></div>
+      <div class="letterbox top"></div><div class="letterbox bottom"></div>
+      <div class="scene-corner top-left">MC // <span id="shotNumber">001</span></div>
+      <div class="scene-corner top-right" id="sceneName">SAKURA COURT</div>
+      <div class="scene-corner bottom-left" id="subtitle">構える。敵の動きを読む。</div>
+      <div class="scene-corner bottom-right" id="timeDisplay">00:00</div>
+      <div class="impact-text" id="impactText">PERFECT CUT</div>
+      <div class="ticker" id="ticker" aria-hidden="true"></div>
+    </div>
+    <div class="cinema-caption"><span id="shotTitle">OPENING SHOT</span><span id="clipBadge">ANIMATIC · 試作映像</span></div>
+  </section>
+
+  <section class="play-panel">
+    <div class="hud">
+      <div class="hud-main">
+        <div class="hud-label"><span>STUNT FLOW</span><strong id="scoreDisplay">000000</strong></div>
+        <div class="bar-track"><span id="flowFill"></span></div>
+      </div>
+      <div class="hud-stats"><div><small>CHAIN</small><b id="chainDisplay">×00</b></div><div><small>VITAL</small><b id="hpDisplay">100</b></div></div>
+    </div>
+    <div id="playControls" class="play-controls">
+      <div class="prompt-row"><div><small>OPPONENT TELL</small><strong id="telegraph">敵の右肩が動いた</strong></div><span id="windowLabel" class="window-label">READY</span></div>
+      <div class="timing-bar"><div id="windowBand" class="window-band"></div><div id="timingNeedle" class="timing-needle"></div></div>
+      <div class="hint" id="timingHint">好機を見極めて次の展開を選べ</div>
+      <div class="choices" id="choices"></div>
+      <div class="utility-row"><button id="retakeButton" class="minor-btn">↶ RETAKE <span id="retakeCounter">02</span></button><button id="pauseButton" class="minor-btn">Ⅱ PAUSE</button><button id="libraryButton" class="minor-btn">▤ CLIPS</button></div>
+    </div>
+  </section>
+
+  <section id="titleOverlay" class="overlay visible" aria-label="タイトル">
+    <div class="overlay-inner">
+      <div class="eyebrow">A PLAYABLE ACTION FILM</div>
+      <h1>MAKE<br><em>THE CUT.</em></h1>
+      <p>映像を見切れ。次の一手を選べ。<br>その選択が、一本の格闘映画になる。</p>
+      <div class="story-badge">ACT 01 <span>桜の屋上 / 交差する拳</span></div>
+      <button id="startButton" class="primary-button">▶ START FILM</button>
+      <button id="titleClipsButton" class="secondary-button">クリップ素材を割り当てる</button>
+      <small class="disclaimer">現在はアニマティックで分岐システムを検証する試作版です。実写動画は素材追加で切替可能。</small>
+    </div>
+  </section>
+
+  <section id="resultOverlay" class="overlay" aria-label="結果">
+    <div class="overlay-inner result-inner">
+      <div class="eyebrow" id="resultEyebrow">FILM WRAPPED</div>
+      <h2 id="resultTitle">THAT'S A WRAP.</h2>
+      <p id="resultMessage">あなたの一手が映画になった。</p>
+      <div class="result-stats"><div><small>SCORE</small><b id="finalScore">000000</b></div><div><small>BEST CHAIN</small><b id="finalChain">00</b></div><div><small>CUTS</small><b id="finalCuts">00</b></div></div>
+      <div class="reel" id="reel"></div>
+      <button id="replayButton" class="primary-button">▶ WATCH YOUR CUT</button>
+      <div class="dual-actions"><button id="resultRetakeButton" class="secondary-button">↶ リテイク</button><button id="restartButton" class="secondary-button">最初から</button></div>
+    </div>
+  </section>
+
+  <section id="pauseOverlay" class="overlay" aria-label="ポーズ">
+    <div class="overlay-inner">
+      <div class="eyebrow">ON SET</div><h2>PAUSED</h2>
+      <p>再開すると同じシーンの続きから進行します。</p>
+      <button id="resumeButton" class="primary-button">▶ RESUME</button>
+      <button id="pauseExitButton" class="secondary-button">タイトルへ</button>
+    </div>
+  </section>
+
+  <section id="mediaOverlay" class="overlay" aria-label="クリップ素材">
+    <div class="overlay-inner media-inner">
+      <div class="eyebrow">MOTION LIBRARY</div><h2>CLIP MAPPER</h2>
+      <p>iPhoneの「ファイル」からMP4/GIFを割り当てます。素材は端末内で一時的に使用され、アップロードされません。</p>
+      <label class="field-label" for="clipNode">映像ノード</label>
+      <select id="clipNode" class="field"></select>
+      <label class="field-label" for="clipFile">このノードに割り当てる動画・GIF</label>
+      <input type="file" class="field file-field" id="clipFile" accept="video/mp4,video/webm,image/gif,image/webp,video/*">
+      <div class="asset-state" id="assetState">現在: 試作アニマティック</div>
+      <button id="clearClipButton" class="secondary-button">このノードを初期状態に戻す</button>
+      <button id="closeMediaButton" class="primary-button">完了</button>
+      <small>正式な作品用素材は assets/clips と assets/manifest.json から読み込み可能。映像の長さはノード定義と合わせてください。</small>
+    </div>
+  </section>
+  <footer class="footnote">V0.1 PLAYABLE PROTOTYPE · BUILT FOR PORTRAIT</footer>
+</main>
+<script src="graph.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
