@@ -4,7 +4,7 @@
   const graph = {
     intro: {
       title:"FIRST CONTACT", shot:"01", location:"桜の屋上", scene:"sakura", motion:"advance",
-      subtitle:"敵が間合いを詰めてくる。", tell:"相手は右拳を大きく引いた", duration:2900, window:[.36,.82],
+      subtitle:"敵が間合いを詰めてくる。", tell:"相手は右拳を大きく引いた", duration:3800, window:[.53,.84], cueAt:.21, cutAt:.84,
       choices:[
         {id:"attack",label:"踏み込む",sub:"先手 / 高得点",symbol:"↗",next:"rush",kind:"risky",points:280,flow:25},
         {id:"evade",label:"かわす",sub:"安全な派生",symbol:"◇",next:"evade",kind:"safe",points:175,flow:18},
@@ -13,7 +13,7 @@
     },
     rush:{
       title:"BREAK THE LINE",shot:"02",location:"桜の屋上",scene:"sakura",motion:"rush",
-      subtitle:"飛び込んだ拳が相手の頬をかすめる。",tell:"相手はガードを高く上げた",duration:2300,window:[.31,.78],
+      subtitle:"飛び込んだ拳が相手の頬をかすめる。",tell:"相手はガードを高く上げた",duration:3200,window:[.56,.91],cueAt:.375,cutAt:.91,
       choices:[
         {id:"elbow",label:"肘で崩す",sub:"近距離・連撃",symbol:"✦",next:"elbow",kind:"risky",points:310,flow:26},
         {id:"sweep",label:"下段を払う",sub:"ガードを崩す",symbol:"↘",next:"sweep",kind:"normal",points:240,flow:20},
@@ -21,8 +21,8 @@
       ]
     },
     evade:{
-      title:"BREATHE & SLIP",shot:"03",location:"桜の屋上",scene:"rain",motion:"evade",
-      subtitle:"拳が空を切る。その一瞬を逃さない。",tell:"相手の重心が前に流れた",duration:2400,window:[.27,.80],
+      title:"BREATHE & SLIP",shot:"03",location:"雨の路地",scene:"rain",motion:"evade",
+      subtitle:"拳が空を切る。その一瞬を逃さない。",tell:"相手の重心が前に流れた",duration:3400,window:[.59,.91],cueAt:.41,cutAt:.91,
       choices:[
         {id:"counter",label:"カウンター",sub:"最大の好機",symbol:"⚡",next:"counter",kind:"risky",points:340,flow:31},
         {id:"wall",label:"壁へ誘導",sub:"場面転換",symbol:"▣",next:"wall",kind:"normal",points:210,flow:22},
