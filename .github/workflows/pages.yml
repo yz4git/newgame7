@@ -1,4 +1,4 @@
-name: Publish GIF FIGHTERS to GitHub Pages
+name: Publish KAWAII MOTION to GitHub Pages
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Verify entry point
-        run: test -s index.html && test -s app.js && test -s graph.js && test -s styles.css
+        run: test -s index.html && test -s dance.js && test -s dance-graph.js && test -s dance.css
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
