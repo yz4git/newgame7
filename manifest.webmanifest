@@ -1,0 +1,10 @@
+{
+  "name": "GIF FIGHTERS: MOTION CHAIN",
+  "short_name": "MOTION CHAIN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080d16",
+  "theme_color": "#080d16"
+}
