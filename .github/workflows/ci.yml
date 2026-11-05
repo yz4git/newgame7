@@ -17,3 +17,5 @@ jobs:
         run: node tests/graph.test.cjs
       - name: Gameplay smoke test
         run: node tests/engine.test.cjs
+      - name: Storyboard coverage
+        run: node tests/storyboards.test.cjs
