@@ -490,6 +490,10 @@
     .then(r=>r.ok?r.json():{}).then(x=>{
       if(x&&typeof x==="object"&&!Array.isArray(x))manifest=x;
       updateAssetState();
+      // If the audience starts immediately before the manifest arrives,
+      // swap the placeholder into its bundled clip as soon as assets are known.
+      if(["playing","replay"].includes(run.phase) && !run.paused && !els.video.classList.contains("active")
+        && !els.gif.classList.contains("active") && mediaFor(current,incoming))loadMedia(current);
     }).catch(()=>{});
   populateEntries();display();show(els.title);
   requestAnimationFrame(tick);
