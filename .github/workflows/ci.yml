@@ -13,9 +13,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Graph integrity
+      - name: KAWAII MOTION full gameplay
+        run: node tests/dance.test.cjs
+      - name: Legacy MOTION CHAIN graph integrity
         run: node tests/graph.test.cjs
-      - name: Gameplay smoke test
+      - name: Legacy MOTION CHAIN smoke test
         run: node tests/engine.test.cjs
-      - name: Storyboard coverage
+      - name: Legacy storyboard coverage
         run: node tests/storyboards.test.cjs
