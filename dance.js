@@ -158,7 +158,7 @@
         choose(action.id);
       });
       button.addEventListener("click",()=>{
-        if(performance.now()-pointerTime>120)choose(action.id);
+        if(performance.now()-pointerTime>420)choose(action.id);
       });
       els.choices.append(button);
     }
@@ -253,17 +253,19 @@
   }
   function resolveRhythm(elapsed){
     if(!sceneRhythm)return;
+    let changed=false;
     for(const n of sceneRhythm.notes){
       if(!n.rivalAwarded && elapsed>=n.at){
         n.rivalAwarded=true;
         const rival=data.rivalStyles[Math.min(run.beat,data.maxBeats-1)];
         const value=73+(rival===readMood().style?15:0)+(run.beat%2?6:0);
         run.rivalFans+=value;
+        changed=true;
         recordRhythmEvent("rival",n,n.at,{fans:value});
       }
     }
     for(const n of rhythm.expire(sceneRhythm.notes,elapsed))missedNote(n,n.at+rhythm.WINDOW+1);
-    display();
+    if(changed)display();
   }
   function replayRhythm(elapsed){
     if(!sceneRhythm)return;
