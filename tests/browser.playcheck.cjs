@@ -71,7 +71,7 @@ async function runVariant(v){
     for(let round=0;round<5;round++){
       const node=nodes[id];
       const chart=core.chart(node,window.KAWAII_GRAPH.moods[round].style,window.KAWAII_GRAPH.rivalStyles[round],round);
-      const sceneStart=performance.now();
+      const sceneStart=Number(document.getElementById("stage").dataset.startedAt);
       const beats=[];
       for(let i=0;i<4;i++){
         const style=chart[i].style||route[round];
