@@ -86,6 +86,7 @@
     mediaToken++;
     els.video.pause();
     els.video.classList.remove("active");els.gif.classList.remove("active");
+    els.stage.classList.remove("has-media");
     els.video.removeAttribute("src");els.gif.removeAttribute("src");
     els.video.load();
   }
@@ -113,18 +114,19 @@
       els.video.onplaying=()=>{
         if(ticket!==mediaToken)return;
         els.video.classList.add("active");
+        els.stage.classList.add("has-media");
         els.clipBadge.textContent="VIDEO / "+clip.name.slice(0,14);
       };
-      els.video.onerror=()=>{if(ticket===mediaToken){els.video.classList.remove("active");els.clipBadge.textContent="ANIMATIC / VIDEO ERROR";}};
+      els.video.onerror=()=>{if(ticket===mediaToken){els.video.classList.remove("active");els.stage.classList.remove("has-media");els.clipBadge.textContent="ANIMATIC / VIDEO ERROR";}};
       els.video.src=clip.url;
       els.video.load();
       const promise=els.video.play();
       if(promise && promise.catch)promise.catch(()=>{
-        if(ticket===mediaToken){els.video.classList.remove("active");els.clipBadge.textContent="ANIMATIC / AUTOPLAY LIMITED";}
+        if(ticket===mediaToken){els.video.classList.remove("active");els.stage.classList.remove("has-media");els.clipBadge.textContent="ANIMATIC / AUTOPLAY LIMITED";}
       });
     }else{
-      els.gif.onload=()=>{if(ticket===mediaToken){els.gif.classList.add("active");els.clipBadge.textContent="GIF / "+clip.name.slice(0,14);}};
-      els.gif.onerror=()=>{if(ticket===mediaToken){els.gif.classList.remove("active");els.clipBadge.textContent="ANIMATIC / GIF ERROR";}};
+      els.gif.onload=()=>{if(ticket===mediaToken){els.gif.classList.add("active");els.stage.classList.add("has-media");els.clipBadge.textContent="GIF / "+clip.name.slice(0,14);}};
+      els.gif.onerror=()=>{if(ticket===mediaToken){els.gif.classList.remove("active");els.stage.classList.remove("has-media");els.clipBadge.textContent="ANIMATIC / GIF ERROR";}};
       els.gif.src=clip.url;
     }
   }
