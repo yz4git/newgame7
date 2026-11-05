@@ -123,3 +123,9 @@ body{touch-action:manipulation}button,input,select{font:inherit}button{border:0;
 .stage.fever .note-highway{border-color:#fff0bf66;box-shadow:inset 0 0 28px #ffe2ad17,0 0 13px #ffe0ac44}
 .stage.fever .crowd .stick{filter:brightness(1.5)}
 @media(prefers-reduced-motion:reduce){.stage.fever .particles span,.stage.fever .light-beam{animation:none}}
+
+/* Rhythm edition: eliminate old QTE timing gauge. The note highway is the only hit guide. */
+.rhythm-box{display:none}
+.control-panel{min-height:235px}
+@media(max-height:735px){.control-panel{min-height:218px}}
+@media(max-height:625px){.control-panel{min-height:200px}}
