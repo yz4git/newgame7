@@ -19,7 +19,9 @@ async function runVariant(v){
     reducedMotion:"no-preference",
     permissions:[]
   });
+  try {
   const page=await context.newPage();
+  process.stdout.write("PLAYCHECK BROWSER START "+v.name+"\n");
   const errors=[];
   page.on("pageerror",e=>errors.push("JS: "+e.message));
   page.on("console",m=>{if(m.type()==="error")errors.push("Console: "+m.text());});
@@ -44,6 +46,7 @@ async function runVariant(v){
   await page.locator("#startBtn").click();
   await page.waitForSelector(".note-token");
   await page.screenshot({path:"playcheck-output/"+v.name+"-game.png"});
+  process.stdout.write("PLAYCHECK BROWSER GAME "+v.name+" "+JSON.stringify(layout)+"\n");
   const padRects=await page.locator("#choices .choice-btn").evaluateAll(nodes=>nodes.map(n=>{
     const r=n.getBoundingClientRect();return {width:r.width,height:r.height,bottom:r.bottom};
   }));
@@ -104,6 +107,7 @@ async function runVariant(v){
       reelCount:document.querySelector("#reel").children.length};
   });
   await page.screenshot({path:"playcheck-output/"+v.name+"-result.png"});
+  process.stdout.write("PLAYCHECK BROWSER RESULT "+v.name+" "+JSON.stringify(play)+"\n");
   assert.ok(play.resultVisible,"result overlay appears");
   assert.equal(play.reelCount,5,"five video branches logged");
   const grades=play.report.flatMap(x=>x.beats.map(y=>y.judgment));
@@ -119,10 +123,17 @@ async function runVariant(v){
   }));
   assert.ok(replay.hasNotes===4,"replay visibly displays mapped rhythm notes");
   assert.equal(errors.length,0,"browser errors: "+JSON.stringify(errors));
-  await context.close();await browser.close();
   return {...v,engine:v.name,layout,pads:padRects,play,replay,errors};
+  } finally {
+    await context.close().catch(()=>{});
+    await browser.close().catch(()=>{});
+  }
 }
 (async()=>{
+  const watchdog=setTimeout(()=>{
+    process.stderr.write("PLAYCHECK WATCHDOG: exiting stalled browser run\n");
+    process.exit(3);
+  },145000);
   for(const v of variants){
     try{
       const result=await runVariant(v);
@@ -137,5 +148,6 @@ async function runVariant(v){
     }
   }
   fs.writeFileSync("playcheck-output/report.json",JSON.stringify(results,null,2));
+  clearTimeout(watchdog);
   if(results.some(x=>x.error))process.exitCode=1;
 })().catch(e=>{console.error(e);process.exitCode=1;});
