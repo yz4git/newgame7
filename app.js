@@ -12,7 +12,7 @@
     tell:$("telegraph"), windowBand:$("windowBand"), windowLabel:$("windowLabel"), timingNeedle:$("timingNeedle"),
     timingHint:$("timingHint"), choices:$("choices"), retakes:$("retakeCounter"), retake:$("retakeButton"),
     impact:$("impactText"), ticker:$("ticker"), clipBadge:$("clipBadge"), clipNode:$("clipNode"),
-    clipFile:$("clipFile"), assetState:$("assetState"), reel:$("reel")
+    clipFile:$("clipFile"), clipEntry:$("clipEntry"), assetState:$("assetState"), reel:$("reel")
   };
   if (!graph || !els.title) return;
   const overlays = [els.title,els.result,els.pause,els.media];
@@ -27,7 +27,8 @@
   let mediaBefore = "title";
   let replayPlan = [];
   let replayIndex = 0;
-  let pendingChoice = null; // buffered decision for portrait film shots
+  let pendingChoice = null; // buffered decision for cinematic motion shots
+  let currentIncoming = null; // {from,choice}: selects entry-compatible source video
   let run = newRun();
 
   function newRun() {
@@ -63,9 +64,15 @@
     els.video.removeAttribute("src");els.gif.removeAttribute("src");
     els.video.load();
   }
-  function getClip(id) {
-    if(library.has(id)) return library.get(id);
-    const source=manifest[id];
+  function getClip(id,incoming=null) {
+    const route=incoming ? incoming.from+":"+incoming.choice : "";
+    const variantKey=route ? id+"@"+route : "";
+    if(variantKey && library.has(variantKey))return library.get(variantKey);
+    if(library.has(id))return library.get(id);
+    let source=manifest[id];
+    if(source && typeof source==="object" && !Array.isArray(source)){
+      source=(route && source.from && source.from[route]) || source.default;
+    }
     if(typeof source==="string" && /^(?:assets\/clips\/)[a-z0-9._/-]+$/i.test(source) && !source.includes("..")) {
       return {url:source,name:source,type:isClipVideo(source)?"video/mp4":"image/gif"};
     }
@@ -74,11 +81,11 @@
   function loadMedia(node) {
     stopMedia();
     const token=mediaToken;
-    const clip=getClip(node.id);
+    const clip=getClip(node.id,currentIncoming);
     els.clipBadge.textContent="ANIMATIC · 試作映像";
     if(!clip) return;
     if (isClipVideo(clip.name) || clip.type.startsWith("video/")) {
-      els.video.muted=true;els.video.loop=true;els.video.playsInline=true;
+      els.video.muted=true;els.video.loop=false;els.video.playsInline=true;
       els.video.onplaying=()=>{if(token!==mediaToken)return;els.video.classList.add("active");els.clipBadge.textContent="VIDEO · "+clip.name.slice(0,18);};
       els.video.onerror=()=>{if(token===mediaToken){els.video.classList.remove("active");els.clipBadge.textContent="ANIMATIC · 再生失敗";}};
       els.video.src=clip.url;els.video.load();
@@ -127,8 +134,9 @@
       els.choices.append(btn);
     });
   }
-  function enterNode(id) {
+  function enterNode(id,incoming=null) {
     currentNode=graph[id] || graph.knockout;
+    currentIncoming=incoming;
     pendingChoice=null;
     enteredAt=performance.now();
     els.cinema.className="cinema scene-"+currentNode.scene;
@@ -215,7 +223,7 @@
       next,at:node.cutAt&&rating!=="miss"?node.cutAt:fraction,decisionAt:fraction,rating,before});
     run.cuts++;
     run.lastJudgment=rating;run.lastChoice=caption;
-    enterNode(next);
+    enterNode(next,{from:node.id,choice:choice?.id||"timeout"});
   }
   function retake() {
     if(run.retakes<1 || run.path.length<1 || !["playing","result"].includes(run.phase))return;
@@ -223,7 +231,10 @@
     run.retakes--;run.score=before.score;run.chain=before.chain;run.maxChain=before.maxChain;
     run.flow=before.flow;run.hp=before.hp;run.cuts=run.path.length;
     run.phase="playing";run.paused=false;
-    showOverlay(null);enterNode(last.node);flash("RETAKE");
+    showOverlay(null);
+    const prev=run.path[run.path.length-1];
+    enterNode(last.node,prev?{from:prev.node,choice:prev.choice}:null);
+    flash("RETAKE");
     tone(400,.13,"sine");
   }
   function finish(outcome) {
@@ -286,29 +297,55 @@
       if(els.video.src)els.video.play().catch(()=>{});
     } else if(mediaBefore==="result")showOverlay(els.result);
   }
-  function updateAssetState(){
+  function populateEntries(){
     const id=els.clipNode.value;
-    const asset=getClip(id);
+    els.clipEntry.replaceChildren();
+    const ordinary=document.createElement("option");ordinary.value="";ordinary.textContent="共通の映像（入口差分なし）";
+    els.clipEntry.append(ordinary);
+    for(const source of Object.values(graph)){
+      for(const choice of source.choices||[]){
+        if(choice.next!==id)continue;
+        const o=document.createElement("option");
+        o.value=source.id+":"+choice.id;
+        o.textContent=source.shot+" "+source.title+" → "+choice.label;
+        els.clipEntry.append(o);
+      }
+    }
+    els.clipEntry.value="";
+    updateAssetState();
+  }
+  function clipSelection(){
+    const id=els.clipNode.value,route=els.clipEntry.value;
+    const incoming=route && route.includes(":")?
+      {from:route.slice(0,route.indexOf(":")),choice:route.slice(route.indexOf(":")+1)}:null;
+    return {id,route, incoming, key:route?id+"@"+route:id};
+  }
+  function updateAssetState(){
+    const selection=clipSelection();
+    const asset=getClip(selection.id,selection.incoming);
     els.assetState.textContent="現在: "+(asset?asset.name:"試作アニマティック")+
       " / 割当数 "+(Object.keys(manifest).length+library.size);
   }
   function onClipFile() {
-    const file=els.clipFile.files?.[0],id=els.clipNode.value;
-    if(!file || !id)return;
+    const file=els.clipFile.files?.[0],selection=clipSelection();
+    if(!file || !selection.id)return;
     if(!/^(video\/(mp4|webm|quicktime)|image\/(gif|webp))$/.test(file.type)) {
       els.assetState.textContent="非対応の形式です。MP4 / WebM / GIF / WebPを選択してください";return;
     }
     if(file.size>120*1024*1024){els.assetState.textContent="ファイルが大きすぎます（120MB以下）";return;}
-    const existing=library.get(id);if(existing)URL.revokeObjectURL(existing.url);
-    library.set(id,{url:URL.createObjectURL(file),type:file.type,name:file.name});
+    const existing=library.get(selection.key);if(existing)URL.revokeObjectURL(existing.url);
+    library.set(selection.key,{url:URL.createObjectURL(file),type:file.type,name:file.name});
     els.clipFile.value="";updateAssetState();
-    if(currentNode.id===id && ["playing","replay"].includes(run.phase))loadMedia(currentNode);
+    const inKey=currentIncoming?currentIncoming.from+":"+currentIncoming.choice:"";
+    if(currentNode.id===selection.id && (!selection.route || selection.route===inKey) && ["playing","replay"].includes(run.phase))loadMedia(currentNode);
     tone(700,.09,"triangle");
   }
   function clearClip(){
-    const id=els.clipNode.value,old=library.get(id);
-    if(old){URL.revokeObjectURL(old.url);library.delete(id);}
-    updateAssetState();if(id===currentNode.id && ["playing","replay"].includes(run.phase))loadMedia(currentNode);
+    const selected=clipSelection(),old=library.get(selected.key);
+    if(old){URL.revokeObjectURL(old.url);library.delete(selected.key);}
+    updateAssetState();
+    const inKey=currentIncoming?currentIncoming.from+":"+currentIncoming.choice:"";
+    if(selected.id===currentNode.id && (!selected.route || selected.route===inKey) && ["playing","replay"].includes(run.phase))loadMedia(currentNode);
   }
   function tick(now) {
     if(["playing","replay"].includes(run.phase) && !run.paused){
@@ -340,7 +377,7 @@
         if(next && next.node===node.id && frac>=next.at) {
           flash(next.rating==="perfect"?"PERFECT CUT":next.rating==="miss"?"MISSED CUT":"GOOD CUT",next.rating==="miss");
           replayIndex++;
-          enterNode(next.next);
+          enterNode(next.next,{from:next.node,choice:next.choice});
         }else if(node.terminal && elapsed>=node.duration)finish(run.outcome||node.terminal);
         else if(!next && !node.terminal && elapsed>=node.duration)finish(run.outcome||"survived");
       }
@@ -351,7 +388,8 @@
     const opt=document.createElement("option");opt.value=id;opt.textContent=node.shot+" · "+node.title;
     els.clipNode.append(opt);
   });
-  els.clipNode.addEventListener("change",updateAssetState);
+  els.clipNode.addEventListener("change",populateEntries);
+  els.clipEntry.addEventListener("change",updateAssetState);
   els.clipFile.addEventListener("change",onClipFile);
   $("startButton").addEventListener("click",start);
   $("restartButton").addEventListener("click",start);
@@ -387,5 +425,5 @@
   fetch("assets/manifest.json",{cache:"no-cache"}).then(res=>res.ok?res.json():{})
     .then(data=>{if(data && typeof data==="object" && !Array.isArray(data))manifest=data;updateAssetState();})
     .catch(()=>{});
-  showOverlay(els.title);renderHud();requestAnimationFrame(tick);
+  populateEntries();showOverlay(els.title);renderHud();requestAnimationFrame(tick);
 })();
