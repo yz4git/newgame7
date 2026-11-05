@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1150" height="820" viewBox="0 0 1150 820">
+<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7" fill="#f57879"/></marker></defs>
+<rect width="1150" height="820" fill="#0b111d"/>
+<rect x="19" y="18" width="1110" height="784" rx="14" fill="none" stroke="#3b5266" stroke-width="2"/>
+<text x="35" y="55" fill="#e3e8f5" font-size="27" font-family="sans-serif" font-weight="900">GIF FIGHTERS  ·  CUT03 BREATHE & SLIP</text>
+<text x="35" y="86" fill="#81c9d3" font-family="sans-serif" font-size="17">STORYBOARD V2  /  PORTRAIT 3:4  /  3.40s  /  MOTION BRANCH</text>
+<text x="35" y="118" fill="#b3c8d5" font-family="sans-serif" font-size="15">桜華（赤） → レイナ（紺）     ·     縦フレームに重要な動作と攻撃予兆を配置</text>
+<g>
+<rect x="34" y="143" width="300" height="400" rx="12" fill="#142634" stroke="#7e849f" stroke-width="2"/>
+<clipPath id="CUT03-mask0"><rect x="37" y="146" width="294" height="394" rx="10"/></clipPath>
+<g clip-path="url(#CUT03-mask0)">
+<g stroke="#8ac9ec" stroke-width="1" opacity=".45"><path d="M44 163 l-14 80"/><path d="M55 167 l-14 80"/><path d="M66 171 l-14 80"/><path d="M77 175 l-14 80"/><path d="M88 163 l-14 80"/><path d="M99 167 l-14 80"/><path d="M110 171 l-14 80"/><path d="M121 175 l-14 80"/><path d="M132 163 l-14 80"/><path d="M143 167 l-14 80"/><path d="M154 171 l-14 80"/><path d="M165 175 l-14 80"/><path d="M176 163 l-14 80"/><path d="M187 167 l-14 80"/><path d="M198 171 l-14 80"/><path d="M209 175 l-14 80"/><path d="M220 163 l-14 80"/><path d="M231 167 l-14 80"/><path d="M242 171 l-14 80"/><path d="M253 175 l-14 80"/><path d="M264 163 l-14 80"/><path d="M275 167 l-14 80"/><path d="M286 171 l-14 80"/><path d="M297 175 l-14 80"/><path d="M308 163 l-14 80"/><path d="M319 167 l-14 80"/><path d="M330 171 l-14 80"/><path d="M341 175 l-14 80"/></g>
+<path d="M34 413 L334 413 L344 543 L24 543Z" fill="#4d5669" opacity=".46"/>
+<path d="M34 439 H334 M34 467 H334 M34 503 H334" stroke="#aeb6c5" stroke-opacity=".28"/>
+<g transform="translate(34 183)"><g transform="translate(69 318) scale(0.95 0.95)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#9d2947" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#9d2947" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+<path d="M29-195 Q41-205 64-196" fill="none" stroke="#d95777" stroke-width="6"/><circle cx="14" cy="-198" r="5" fill="#ffdae5"/>
+<path d="M-21-76 Q-2-66 22-75" stroke="#eeba89" stroke-width="5" fill="none"/>
+</g><g transform="translate(243 308) scale(-1.05 1.05)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#234961" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#234961" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+
+<path d="M-21-76 Q-2-66 22-75" stroke="#8fd6e5" stroke-width="5" fill="none"/>
+</g></g>
+<path d="M179 318 Q196.5 284 214 326" stroke="#f57879" stroke-width="4" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+</g>
+<rect x="45" y="154" width="100" height="28" rx="5" fill="#101623" opacity=".9"/>
+<text x="57" y="173" fill="#f6f2f3" font-size="13" font-weight="700">FRAME 1</text>
+<text x="34" y="569" fill="#eaf0f7" font-weight="800" font-size="17">拳で遮蔽マッチカット</text>
+<text x="34" y="595" fill="#8fbbd1" font-size="14">0.00–0.70 s</text>
+<text x="34" y="619" fill="#d3dee7" font-size="13">桜→雨：拳が全幅を隠す</text>
+</g><g>
+<rect x="373" y="143" width="300" height="400" rx="12" fill="#142634" stroke="#7e849f" stroke-width="2"/>
+<clipPath id="CUT03-mask1"><rect x="376" y="146" width="294" height="394" rx="10"/></clipPath>
+<g clip-path="url(#CUT03-mask1)">
+<g stroke="#8ac9ec" stroke-width="1" opacity=".45"><path d="M383 163 l-14 80"/><path d="M394 167 l-14 80"/><path d="M405 171 l-14 80"/><path d="M416 175 l-14 80"/><path d="M427 163 l-14 80"/><path d="M438 167 l-14 80"/><path d="M449 171 l-14 80"/><path d="M460 175 l-14 80"/><path d="M471 163 l-14 80"/><path d="M482 167 l-14 80"/><path d="M493 171 l-14 80"/><path d="M504 175 l-14 80"/><path d="M515 163 l-14 80"/><path d="M526 167 l-14 80"/><path d="M537 171 l-14 80"/><path d="M548 175 l-14 80"/><path d="M559 163 l-14 80"/><path d="M570 167 l-14 80"/><path d="M581 171 l-14 80"/><path d="M592 175 l-14 80"/><path d="M603 163 l-14 80"/><path d="M614 167 l-14 80"/><path d="M625 171 l-14 80"/><path d="M636 175 l-14 80"/><path d="M647 163 l-14 80"/><path d="M658 167 l-14 80"/><path d="M669 171 l-14 80"/><path d="M680 175 l-14 80"/></g>
+<path d="M373 413 L673 413 L683 543 L363 543Z" fill="#4d5669" opacity=".46"/>
+<path d="M373 439 H673 M373 467 H673 M373 503 H673" stroke="#aeb6c5" stroke-opacity=".28"/>
+<g transform="translate(373 183)"><g transform="translate(105 323) scale(1 1)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#9d2947" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#9d2947" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+<path d="M29-195 Q41-205 64-196" fill="none" stroke="#d95777" stroke-width="6"/><circle cx="14" cy="-198" r="5" fill="#ffdae5"/>
+<path d="M-21-76 Q-2-66 22-75" stroke="#eeba89" stroke-width="5" fill="none"/>
+</g><g transform="translate(226 306) scale(-1.05 1.05)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#234961" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#234961" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+
+<path d="M-21-76 Q-2-66 22-75" stroke="#8fd6e5" stroke-width="5" fill="none"/>
+</g></g>
+<path d="M571 343 Q544.5 309 518 413" stroke="#f57879" stroke-width="4" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+</g>
+<rect x="384" y="154" width="100" height="28" rx="5" fill="#101623" opacity=".9"/>
+<text x="396" y="173" fill="#f6f2f3" font-size="13" font-weight="700">FRAME 2</text>
+<text x="373" y="569" fill="#eaf0f7" font-weight="800" font-size="17">低く滑って回避</text>
+<text x="373" y="595" fill="#8fbbd1" font-size="14">0.70–1.40 s</text>
+<text x="373" y="619" fill="#d3dee7" font-size="13">レイナの拳の下に身を沈める</text>
+</g><g>
+<rect x="712" y="143" width="300" height="400" rx="12" fill="#142634" stroke="#7e849f" stroke-width="2"/>
+<clipPath id="CUT03-mask2"><rect x="715" y="146" width="294" height="394" rx="10"/></clipPath>
+<g clip-path="url(#CUT03-mask2)">
+<g stroke="#8ac9ec" stroke-width="1" opacity=".45"><path d="M722 163 l-14 80"/><path d="M733 167 l-14 80"/><path d="M744 171 l-14 80"/><path d="M755 175 l-14 80"/><path d="M766 163 l-14 80"/><path d="M777 167 l-14 80"/><path d="M788 171 l-14 80"/><path d="M799 175 l-14 80"/><path d="M810 163 l-14 80"/><path d="M821 167 l-14 80"/><path d="M832 171 l-14 80"/><path d="M843 175 l-14 80"/><path d="M854 163 l-14 80"/><path d="M865 167 l-14 80"/><path d="M876 171 l-14 80"/><path d="M887 175 l-14 80"/><path d="M898 163 l-14 80"/><path d="M909 167 l-14 80"/><path d="M920 171 l-14 80"/><path d="M931 175 l-14 80"/><path d="M942 163 l-14 80"/><path d="M953 167 l-14 80"/><path d="M964 171 l-14 80"/><path d="M975 175 l-14 80"/><path d="M986 163 l-14 80"/><path d="M997 167 l-14 80"/><path d="M1008 171 l-14 80"/><path d="M1019 175 l-14 80"/></g>
+<path d="M712 413 L1012 413 L1022 543 L702 543Z" fill="#4d5669" opacity=".46"/>
+<path d="M712 439 H1012 M712 467 H1012 M712 503 H1012" stroke="#aeb6c5" stroke-opacity=".28"/>
+<g transform="translate(712 183)"><g transform="translate(137 318) scale(1.09 1.09)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#9d2947" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#9d2947" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#151d2c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+<path d="M29-195 Q41-205 64-196" fill="none" stroke="#d95777" stroke-width="6"/><circle cx="14" cy="-198" r="5" fill="#ffdae5"/>
+<path d="M-21-76 Q-2-66 22-75" stroke="#eeba89" stroke-width="5" fill="none"/>
+</g><g transform="translate(240 301) scale(-1.03 1.03)">
+<ellipse cx="0" cy="4" rx="55" ry="10" fill="#01050d" opacity=".5"/>
+<path d="M-14-70 L-26-14 L-10-4 L4-53 L17-3 L34-2 L26-78Z" fill="#234961" stroke="#d4e6eb" stroke-width="2"/>
+<path d="M-24-146 Q-42-131-36-99 L-23-61 Q0-49 22-65 L32-107 Q36-137 11-149Z" fill="#234961" stroke="#d9e3ea" stroke-width="2.2"/>
+<path d="M-25-129 Q-48-105-48-80 L-35-66 Q-20-96-11-113" fill="none" stroke="#eac2ad" stroke-width="16" stroke-linecap="round"/>
+<path d="M20-128 Q41-119 45-93 L57-80" fill="none" stroke="#eac2ad" stroke-width="15" stroke-linecap="round"/>
+<circle cx="54" cy="-79" r="10" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<circle cx="-38" cy="-72" r="9" fill="#182b3c" stroke="#d2e1e5" stroke-width="1.5"/>
+<path d="M-21-177 Q-30-169-27-150 Q-6-131 14-149 Q23-169 5-184 Z" fill="#e0ad91" stroke="#f2d6ba" stroke-width="2"/>
+<path d="M-31-173 Q-32-194-10-199 Q17-205 22-175 Q13-185 6-180 Q-10-168-31-173Z" fill="#161924" stroke="#6c5665" stroke-width="1.8"/>
+<path d="M8-197 Q17-216 29-197 Q29-185 17-184" fill="none" stroke="#171b26" stroke-width="11"/>
+
+<path d="M-21-76 Q-2-66 22-75" stroke="#8fd6e5" stroke-width="5" fill="none"/>
+</g></g>
+<path d="M912 368 Q940 334 968 353" stroke="#f57879" stroke-width="4" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+</g>
+<rect x="723" y="154" width="100" height="28" rx="5" fill="#101623" opacity=".9"/>
+<text x="735" y="173" fill="#f6f2f3" font-size="13" font-weight="700">FRAME 3</text>
+<text x="712" y="569" fill="#eaf0f7" font-weight="800" font-size="17">相手の重心が前へ</text>
+<text x="712" y="595" fill="#8fbbd1" font-size="14">2.00–3.09 s</text>
+<text x="712" y="619" fill="#d3dee7" font-size="13">カウンター・壁・足払いへ</text>
+</g>
+<path d="M20 657 H1130" stroke="#334c60"/>
+<text x="35" y="690" fill="#f4aaa1" font-size="20" font-weight="800">SELECTED BRANCHES</text>
+<text x="35" y="729" fill="#a7eadd" font-size="17" font-weight="700">カウンター → CUT07</text><text x="385" y="729" fill="#a7eadd" font-size="17" font-weight="700">壁へ誘導 → CUT08</text><text x="735" y="729" fill="#a7eadd" font-size="17" font-weight="700">足を払う → CUT06</text>
+<text x="35" y="770" fill="#aabccc" font-size="14">同一方向に体と拳が移動  /  濡れた衣装は接続時に統一  /  選択後も3.09秒まで映像が進む</text>
+<text x="1080" y="82" fill="#a5b0c2" font-size="14">01–03</text>
+</svg>
