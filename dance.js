@@ -120,7 +120,7 @@
       els.video.onerror=()=>{if(ticket===mediaToken){els.video.classList.remove("active");els.stage.classList.remove("has-media");els.clipBadge.textContent="ANIMATIC / VIDEO ERROR";}};
       els.video.src=clip.url;
       els.video.load();
-      const promise=els.video.play();
+      const promise=run.paused?null:els.video.play();
       if(promise && promise.catch)promise.catch(()=>{
         if(ticket===mediaToken){els.video.classList.remove("active");els.stage.classList.remove("has-media");els.clipBadge.textContent="ANIMATIC / AUTOPLAY LIMITED";}
       });
