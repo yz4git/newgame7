@@ -39,6 +39,16 @@ function branch(id,choiceIndex){
   assert.equal(el("shotTitle").textContent,graph[node.choices[choiceIndex].next].title,"destination of "+id);
 }
 assert.ok(el("titleOverlay").classList.contains("visible"));
+el("clipNode").value="finish";
+el("clipNode").listeners.change();
+assert.ok(el("clipEntry").children.some(opt=>opt.value==="counter:finisher"),"finish has incoming counter variant");
+assert.ok(el("clipEntry").children.some(opt=>opt.value==="throw:finisher"),"finish has incoming throw variant");
+const oldCreateURL=URL.createObjectURL;
+URL.createObjectURL=()=>"blob:counter-finish";
+el("clipEntry").value="counter:finisher";
+el("clipFile").files=[{name:"finish_counter.mp4",type:"video/mp4",size:16384}];
+el("clipFile").listeners.change();
+assert.ok(el("assetState").textContent.includes("finish_counter.mp4"),"variant file assigned");
 start();
 advance(900);
 el("choices").children[1].press();
@@ -54,6 +64,7 @@ assert.equal(el("shotTitle").textContent,graph.intro.title,"retake returns to or
 assert.equal(Number(el("scoreDisplay").textContent),0);
 assert.equal(el("retakeCounter").textContent,"01");
 branch("intro",1);branch("evade",0);branch("counter",0);
+assert.equal(el("clipVideo").src,"blob:counter-finish","source-specific finish footage selected");
 advance(graph.finish.duration+25);
 assert.equal(el("resultTitle").textContent,"THAT'S A WRAP.");
 assert.equal(el("finalCuts").textContent,"03");
@@ -100,4 +111,5 @@ el("resumeButton").press();
 assert.equal(el("shotTitle").textContent,graph.intro.title);
 advance(150);
 assert.equal(el("shotTitle").textContent,graph.intro.title,"time remains paused");
+URL.createObjectURL=oldCreateURL;
 console.log("MOTION CHAIN engine PASS: full MOTION BRANCH rollout, 3 endings, replay, retake, early input and pause.");
