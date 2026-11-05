@@ -15,7 +15,7 @@
     cueLabel:$("cueLabel"),secondsLeft:$("secondsLeft"),rhythmWindow:$("rhythmWindow"),rhythmPointer:$("rhythmPointer"),
     chainText:$("chainText"),choices:$("choices"),hypeFill:$("hypeFill"),hypeText:$("hypeText"),
     hint:$("gameHint"),fanPopup:$("fanPopup"),retakesLeft:$("retakesLeft"),retake:$("retakeBtn"),
-    clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),assetState:$("assetState"),reel:$("reel")
+    clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),packFile:$("packFile"),packState:$("packState"),assetState:$("assetState"),reel:$("reel")
   };
   const overlays=[els.title,els.result,els.pause,els.library];
   const runtimeMedia=new Map();
@@ -355,6 +355,37 @@
       && ["playing","replay"].includes(run.phase))loadMedia(current);
     note(710,.08,"sine");
   }
+  async function packChanged(){
+    const input=els.packFile,file=input.files?.[0];
+    if(!file)return;
+    els.packState.textContent="クリップを読み込み中…";
+    try{
+      if(!window.KAWAII_CLIP_PACK)throw Error("パック読込機能がありません");
+      if(file.size>150*1024*1024)throw Error("パックが大きすぎます（150MB以下）");
+      const clips=await window.KAWAII_CLIP_PACK.readPack(await file.arrayBuffer());
+      let loaded=0,ignored=0;
+      for(const clip of clips){
+        if(!shots[clip.node]){ignored++;continue;}
+        if(clip.entry){
+          const parts=clip.entry.split(":");
+          if(parts.length!==2||!shots[parts[0]]?.choices?.some(x=>x.id===parts[1]&&x.next===clip.node)){
+            ignored++;continue;
+          }
+        }
+        const key=clip.node+(clip.entry?"@"+clip.entry:""),old=runtimeMedia.get(key);
+        if(old)URL.revokeObjectURL(old.url);
+        runtimeMedia.set(key,{url:URL.createObjectURL(clip.blob),name:clip.name,type:clip.type});
+        loaded++;
+      }
+      if(!loaded)throw Error("シーン名に一致するクリップがありません");
+      els.packState.textContent=loaded+" 本の映像を読み込みました。"+(ignored?" （未対応 "+ignored+" 本）":"");
+      updateAssetState();
+      if(["playing","replay"].includes(run.phase))loadMedia(current);
+      note(780,.12,"triangle");
+    }catch(err){
+      els.packState.textContent="読み込み失敗: "+(err?.message||"ZIPを確認してください");
+    }finally{input.value="";}
+  }
   function clearFile(){
     const selection=chosenMedia(),previous=runtimeMedia.get(selection.key);
     if(previous){URL.revokeObjectURL(previous.url);runtimeMedia.delete(selection.key);}
@@ -424,6 +455,7 @@
   els.clipNode.addEventListener("change",populateEntries);
   els.clipEntry.addEventListener("change",updateAssetState);
   els.clipFile.addEventListener("change",fileChanged);
+  els.packFile.addEventListener("change",packChanged);
   $("startBtn").addEventListener("click",begin);
   $("restartBtn").addEventListener("click",begin);
   $("replayBtn").addEventListener("click",startReplay);
