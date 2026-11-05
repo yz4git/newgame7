@@ -16,7 +16,7 @@ function makeEl(){
     replaceChildren(...a){this.children=a},
     setAttribute(){},removeAttribute(name){if(name==="src")this.src=""},
     pause(){},load(){},play(){return Promise.resolve()},
-    press(){listeners.click?.()}
+    press(){if(!this.disabled)listeners.click?.()}
   };
 }
 const document={
@@ -34,18 +34,29 @@ const advance=ms=>{clock+=ms;raf(clock)};
 assert.ok(E("titleOverlay").classList.contains("visible"),"title overlay");
 E("startButton").press();
 advance(1600);
-assert.equal(E("windowLabel").textContent,"CUT NOW");
 E("choices").children[1].press();
-assert.equal(E("shotTitle").textContent,"BREATHE & SLIP");
+assert.equal(E("shotTitle").textContent,"FIRST CONTACT","early input does not punish");
+assert.equal(E("hpDisplay").textContent,100,"early input harmless");
+advance(1000); // 2.60s, in the revised intro window
+assert.equal(E("windowLabel").textContent,"BRANCH");
+E("choices").children[1].press();
+assert.equal(E("shotTitle").textContent,"FIRST CONTACT","decision stays buffered");
+assert.equal(E("windowLabel").textContent,"LOCKED");
+advance(600); // reaches 3.19s stitch point
+assert.equal(E("shotTitle").textContent,"BREATHE & SLIP","cuts at marker");
 assert.ok(Number(E("scoreDisplay").textContent)>0);
 E("retakeButton").press();
 assert.equal(E("shotTitle").textContent,"FIRST CONTACT");
 assert.equal(Number(E("scoreDisplay").textContent),0);
 assert.equal(E("retakeCounter").textContent,"01");
-advance(1600);
+advance(2600);
 E("choices").children[1].press();
-advance(1300);
+advance(620);
+assert.equal(E("shotTitle").textContent,"BREATHE & SLIP");
+advance(2500);
 E("choices").children[0].press();
+assert.equal(E("shotTitle").textContent,"BREATHE & SLIP","evade choice buffered");
+advance(620);
 assert.equal(E("shotTitle").textContent,"PERFECT REVERSAL");
 advance(1300);
 E("choices").children[0].press();
@@ -55,11 +66,11 @@ assert.ok(E("resultOverlay").classList.contains("visible"));
 assert.equal(E("resultTitle").textContent,"THAT'S A WRAP.");
 assert.equal(E("finalCuts").textContent,"03");
 E("replayButton").press();
-advance(1601);
-assert.equal(E("shotTitle").textContent,"BREATHE & SLIP");
-advance(1301);
-assert.equal(E("shotTitle").textContent,"PERFECT REVERSAL");
-advance(1301);
+advance(3200);
+assert.equal(E("shotTitle").textContent,"BREATHE & SLIP","replay cut 01 marker");
+advance(3100);
+assert.equal(E("shotTitle").textContent,"PERFECT REVERSAL","replay cut 03 marker");
+advance(1300);
 assert.equal(E("shotTitle").textContent,"FINAL TAKE");
 advance(3000);
 assert.ok(E("resultOverlay").classList.contains("visible"),"replay ends");
@@ -67,5 +78,5 @@ E("resultRetakeButton").press();
 assert.equal(E("shotTitle").textContent,"PERFECT REVERSAL");
 assert.equal(E("retakeCounter").textContent,"00");
 E("choices").children[0].press();
-assert.equal(E("shotTitle").textContent,"MISSED THE BEAT","early choice leads to stumble");
-console.log("MOTION CHAIN engine PASS: timing, route, retake, ending, replay, missed window.");
+assert.equal(E("shotTitle").textContent,"MISSED THE BEAT","legacy shot early miss still present");
+console.log("MOTION CHAIN engine PASS: buffered branch, no early penalty, fixed cut markers, retake, ending, replay.");
