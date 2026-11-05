@@ -9,6 +9,9 @@ for (const [id,node] of Object.entries(nodes)) {
   if (node.terminal) continue;
   assert.equal(node.choices.length,3,"choices: "+id);
   assert.ok(node.window[0] >= 0 && node.window[0] < node.window[1] && node.window[1] <= 1,"window: "+id);
+  assert.ok(node.cueAt > 0 && node.cueAt < node.window[0], "visual tell appears ahead of choice: "+id);
+  assert.ok(node.cutAt >= node.window[1] && node.cutAt < 1, "cinematic cut after decision window: "+id);
+  assert.ok(node.duration*(node.window[1]-node.window[0]) >= 1000, "decision window at least 1 second: "+id);
   for (const choice of node.choices) {
     assert.ok(nodes[choice.next],"broken link: "+id+" > "+choice.next);
     assert.ok(choice.points>0 && choice.flow>0,"reward: "+id);
