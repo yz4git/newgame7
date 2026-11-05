@@ -1,0 +1,40 @@
+name: iPhone Playcheck
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'dance.js'
+      - 'dance.css'
+      - 'dance-graph.js'
+      - 'rhythm*.js'
+      - 'tests/browser.playcheck.cjs'
+      - '.github/workflows/playcheck.yml'
+permissions:
+  contents: read
+jobs:
+  playcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser drivers and engines
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Play interactive 20-note game in mobile Chromium and WebKit
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 &
+          sleep 2
+          node tests/browser.playcheck.cjs
+      - name: Upload screenshots and playcheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kawaii-motion-playcheck
+          path: playcheck-output/
+          if-no-files-found: warn
