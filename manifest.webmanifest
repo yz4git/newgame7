@@ -1,10 +1,19 @@
 {
-  "name": "GIF FIGHTERS: MOTION CHAIN",
-  "short_name": "MOTION CHAIN",
+  "name": "KAWAII MOTION — ファン獲得ダンスバトル",
+  "short_name": "KAWAII MOTION",
+  "description": "映像を選んでダンスをつなぐファン獲得バトル",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#080d16",
-  "theme_color": "#080d16"
+  "background_color": "#100b21",
+  "theme_color": "#100b21",
+  "icons": [
+    {
+      "src": "assets/kawaii-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
