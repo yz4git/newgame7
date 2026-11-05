@@ -17,6 +17,8 @@ jobs:
         run: node tests/dance.test.cjs
       - name: KAWAII MOTION ZIP clip pack
         run: node tests/clip-pack.test.cjs
+      - name: Verify bundled preview MP4 files
+        run: node tests/bundled-media.test.cjs
       - name: Legacy MOTION CHAIN graph integrity
         run: node tests/graph.test.cjs
       - name: Legacy MOTION CHAIN smoke test
