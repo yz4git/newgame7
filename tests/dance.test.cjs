@@ -1,134 +1,158 @@
-/* Node tests for the new KAWAII MOTION game. No browser dependencies. */
+/* KAWAII MOTION RHYTHM - deterministic five-round UI smoke tests in Node. */
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 global.window=global;
 require("../dance-graph.js");
-const graph=global.KAWAII_GRAPH;
-const shots=graph.shots;
+require("../rhythm-core.js");
+require("../rhythm-audio.js");
+const graph=global.KAWAII_GRAPH,core=global.KAWAII_RHYTHM,shots=graph.shots;
+assert.equal(core.BPM,118);
 assert.equal(graph.maxBeats,5);
 assert.equal(graph.moods.length,5);
 assert.ok(Object.keys(shots).length>=14);
-for(const [id,node] of Object.entries(shots)){
-  assert.equal(id,node.id);
-  assert.ok(node.duration>2500);
-  if(node.terminal)continue;
-  assert.equal(node.choices.length,3);
-  assert.ok(node.cueAt<node.window[0]&&node.window[0]<node.window[1]&&node.window[1]<=node.cutAt);
-  assert.ok((node.window[1]-node.window[0])*node.duration>1000,"readable choice window "+id);
-  assert.deepEqual(node.choices.map(c=>c.style),["cute","cool","surprise"]);
-  for(const action of node.choices){assert.ok(shots[action.next],"broken route "+id+" > "+action.next);}
+for(const node of Object.values(shots)){
+ if(node.terminal)continue;
+ assert.equal(node.choices.length,3);
+ assert.deepEqual(node.choices.map(c=>c.style),["cute","cool","surprise"]);
+ const pattern=core.chart(node,"cute","cool",1);
+ assert.equal(pattern.length,4);
+ assert.equal(pattern[0].style,"cute");
+ assert.equal(pattern[3].kind,"freestyle");
+ assert.ok(pattern[3].at+core.WINDOW<node.duration*node.cutAt);
+ for(const action of node.choices)assert.ok(shots[action.next]);
 }
-assert.equal(["win","tie","lose"].filter(id=>shots[id].terminal).length,3);
-let clock=0,raf=null,visHandler=null;
-const els=new Map();
+const sample=core.chart(shots.opening,"cute","cool",0);
+assert.equal(core.tap(sample,"surprise",0).type,"ignored");
+assert.equal(core.tap(sample,"cute",sample[0].at+10).grade,"perfect");
+assert.equal(core.tap(sample,"cute",sample[1].at).type,"wrong");
+assert.equal(core.tap(sample,"surprise",sample[3].at).type,"hit");
+assert.equal(core.tap(sample,"surprise",sample[3].at).type,"ignored");
+assert.equal(core.expire(sample,99999).length,1);
+assert.equal(core.grade(55),"perfect");
+assert.equal(core.grade(98),"great");
+assert.equal(core.grade(160),"good");
+assert.equal(core.grade(180),null);
+
+let clock=0,frame=null;
+const elements=new Map();
 function mock(){
-  const callbacks={},classes=new Set();
-  return {
-    callbacks,children:[],style:{},dataset:{},textContent:"",src:"",files:[],value:"",disabled:false,offsetWidth:0,
-    classList:{
-      add(x){classes.add(x)},remove(x){classes.delete(x)},
-      toggle(x,bool){if(bool)classes.add(x);else classes.delete(x)},
-      contains(x){return classes.has(x)}
-    },
-    addEventListener(name,fn){callbacks[name]=fn},append(...items){this.children.push(...items)},
-    replaceChildren(...items){this.children=items},setAttribute(){},
-    removeAttribute(k){if(k==="src")this.src=""},
-    pause(){},load(){},play(){return Promise.resolve()},
-    press(){if(!this.disabled)callbacks.click?.()},fire(type){callbacks[type]?.()}
-  };
+ const callbacks={},classes=new Set();
+ return {
+  callbacks,children:[],style:{},dataset:{},textContent:"",src:"",files:[],value:"",disabled:false,offsetWidth:0,
+  classList:{add(x){classes.add(x)},remove(x){classes.delete(x)},
+    toggle(x,on){if(on)classes.add(x);else classes.delete(x)},contains(x){return classes.has(x)}},
+  addEventListener(name,fn){callbacks[name]=fn},
+  append(...values){this.children.push(...values)},replaceChildren(...values){this.children=values},
+  setAttribute(){},removeAttribute(k){if(k==="src")this.src=""},
+  pause(){},load(){},play(){return Promise.resolve()},
+  press(){if(!this.disabled)this.callbacks.click?.()},fire(kind){this.callbacks[kind]?.({preventDefault(){}})}
+ };
 }
 const document={
- getElementById(id){if(!els.has(id))els.set(id,mock());return els.get(id)},
- createElement:mock,hidden:false,addEventListener(name,fn){if(name==="visibilitychange")visHandler=fn;}
+ getElementById(id){if(!elements.has(id))elements.set(id,mock());return elements.get(id)},
+ createElement:mock,hidden:false,addEventListener(){}
 };
-const E=id=>document.getElementById(id);
-const source=fs.readFileSync(path.join(__dirname,"../dance.js"),"utf8");
-new Function("window","document","performance","requestAnimationFrame","fetch","localStorage",source)(
-  global,document,{now:()=>clock},fn=>raf=fn,
-  ()=>Promise.resolve({ok:true,json:()=>Promise.resolve({})}),
-  {getItem(){return null},setItem(){}}
+const el=id=>document.getElementById(id);
+const js=fs.readFileSync(path.join(__dirname,"../dance.js"),"utf8");
+new Function("window","document","performance","requestAnimationFrame","fetch","localStorage",js)(
+ global,document,{now:()=>clock},fn=>frame=fn,
+ ()=>Promise.resolve({ok:true,json:()=>Promise.resolve({})}),
+ {getItem(){return null},setItem(){}}
 );
-const tick=ms=>{clock+=ms;raf(clock)};
-function playStart(){E("startBtn").press();assert.equal(E("sceneTitle").textContent,shots.opening.title)}
-function choose(index,id){
-  const node=shots[id];assert.equal(E("sceneTitle").textContent,node.title,"expected "+id);
-  const before=Number(E("heroFans").textContent.replace(/,/g,""));
-  const at=Math.round(node.duration*.70);
-  tick(at);
-  assert.equal(E("cueLabel").textContent,"APPEAL NOW","open window at "+id);
-  E("choices").children[index].press();
-  assert.equal(E("sceneTitle").textContent,node.title,"choice buffered");
-  assert.equal(E("cueLabel").textContent,"LOCKED");
-  E("choices").children[(index+1)%3].press();
-  tick(Math.round(node.duration*(node.cutAt-.70))+22);
-  const after=Number(E("heroFans").textContent.replace(/,/g,""));
-  assert.ok(after>before,"new fans from "+id);
-  return node.choices[index].next;
+const advance=ms=>{assert.ok(ms>=0,"Cannot go back in time");clock+=ms;frame(clock)};
+const count=id=>Number(el(id).textContent.replace(/,/g,""));
+function start(){
+ el("startBtn").press();
+ assert.equal(el("sceneTitle").textContent,shots.opening.title);
+ assert.equal(el("noteContainer").children.length,4,"four notes per shot");
 }
-assert.ok(E("titleOverlay").classList.contains("visible"));
-playStart();
-tick(650);
-E("choices").children[0].press();
-assert.equal(E("heroFans").textContent,"650","early input has no consequence");
-tick(Math.round(shots.opening.duration*.70)-650);
-E("choices").children[0].press();
-tick(Math.round(shots.opening.duration*(shots.opening.cutAt-.70))+22);
-assert.equal(E("sceneTitle").textContent,shots.heart.title);
-assert.ok(Number(E("heroFans").textContent.replace(/,/g,""))>650);
-const scoreAfterBeat1=E("heroFans").textContent;
-E("retakeBtn").press();
-assert.equal(E("sceneTitle").textContent,shots.opening.title);
-assert.equal(E("heroFans").textContent,"650","retake restores fans");
-assert.equal(E("retakesLeft").textContent,"01");
-let next=choose(0,"opening");
-next=choose(1,next);
-next=choose(2,next);
-next=choose(0,next);
-next=choose(1,next);
-assert.equal(E("roundBadge").textContent,"FINAL SHOW");
-assert.ok(E("choices").children[0].textContent.includes("ラスト") || E("choices").children.length===1);
-const last=shots[next];
-tick(last.duration+30);
-assert.equal(E("sceneTitle").textContent,shots.win.title,"audience-matching path wins");
-tick(shots.win.duration+30);
-assert.equal(E("resultTitle").textContent,"ENCORE!");
-assert.ok(E("resultOverlay").classList.contains("visible"));
-const heroFinal=E("finalHero").textContent,rivalFinal=E("finalRival").textContent;
-assert.equal(E("reel").children.length,5);
-E("replayBtn").press();
+function perform(nodeId,round,finishStyle){
+ const node=shots[nodeId];
+ assert.equal(el("sceneTitle").textContent,node.title,"expected "+nodeId);
+ const chart=core.chart(node,graph.moods[round].style,graph.rivalStyles[round],round);
+ const entered=clock;
+ for(const n of chart){
+   advance(n.at-(clock-entered));
+   const lane=n.style||finishStyle;
+   const pad=node.choices.findIndex(c=>c.style===lane);
+   assert.ok(pad>=0);
+   el("choices").children[pad].press();
+ }
+ assert.equal(el("noteContainer").children.length,4);
+ assert.ok(el("cueLabel").textContent.includes("LOCKED"),"last note selects the branch");
+ assert.equal(el("roundBadge").textContent,"BEAT "+String(round+1).padStart(2,"0")+" / 05");
+ const endAt=node.duration*node.cutAt+35;
+ advance(endAt-(clock-entered));
+ const choice=node.choices.find(c=>c.style===finishStyle);
+ assert.equal(el("sceneTitle").textContent,shots[choice.next].title,"branched by final freestyle tap");
+ return choice.next;
+}
+assert.ok(el("titleOverlay").classList.contains("visible"));
+start();
+// Missing the first note breaks the combo but later notes can still be played.
+advance(1090);
+assert.ok(el("noteFeedback").textContent.includes("MISS"));
+advance(core.chart(shots.opening,"cute","cool",0)[1].at-1090);
+el("choices").children[1].press();
+assert.equal(el("chainText").textContent,"COMBO ×1");
+el("startBtn").press(); // starts a clean five-round performance
+assert.equal(count("heroFans"),650);
+assert.equal(el("chainText").textContent,"COMBO ×0");
+const route=["cute","cool","surprise","cute","cool"];
 let id="opening";
-for(let i=0;i<5;i++){
-  const node=shots[id];
-  tick(Math.ceil(node.duration*node.cutAt)+30);
-  const route=[0,1,2,0,1];
-  id=node.choices[route[i]].next;
-  assert.equal(E("sceneTitle").textContent,shots[id].title,"replay step "+i);
+for(let round=0;round<5;round++){
+ id=perform(id,round,route[round]);
+ if(round===0){
+   assert.ok(count("heroFans")>650);
+   el("retakeBtn").press();
+   assert.equal(el("sceneTitle").textContent,shots.opening.title);
+   assert.equal(count("heroFans"),650,"retake reverses each tap's fan income");
+   assert.equal(el("chainText").textContent,"COMBO ×0");
+   assert.equal(el("retakesLeft").textContent,"01");
+   id=perform("opening",0,route[round]);
+ }
 }
-tick(shots[id].duration+25);
-assert.equal(E("sceneTitle").textContent,shots.win.title);
-tick(shots.win.duration+25);
-assert.equal(E("finalHero").textContent,heroFinal,"replay hero fans match");
-assert.equal(E("finalRival").textContent,rivalFinal,"replay rival fans match");
-E("resultRetakeBtn").press();
-assert.equal(E("retakesLeft").textContent,"00","retake resource consumed");
-assert.equal(E("sceneTitle").textContent,shots.heart.title,"retake from result restores last decision");
-playStart();
-for(let i=0;i<5;i++){
-  const id=i===0?"opening":"freeze";
-  tick(shots[id].duration+15);
-  assert.equal(E("sceneTitle").textContent,shots.freeze.title);
+assert.equal(el("roundBadge").textContent,"FINAL SHOW");
+advance(shots[id].duration+15);
+assert.equal(el("sceneTitle").textContent,shots.win.title,"perfect sequence wins");
+advance(shots.win.duration+15);
+assert.equal(el("resultTitle").textContent,"ENCORE!");
+assert.equal(el("reel").children.length,5);
+assert.ok(el("finalAccuracy").textContent.includes("PERFECT 20"),"20 precise notes");
+const finalHero=el("finalHero").textContent,finalRival=el("finalRival").textContent;
+el("replayBtn").press();
+id="opening";
+for(let round=0;round<5;round++){
+ const node=shots[id],entered=clock;
+ advance(node.duration*node.cutAt+26);
+ id=node.choices.find(c=>c.style===route[round]).next;
+ assert.equal(el("sceneTitle").textContent,shots[id].title,"replay route step "+round);
 }
-tick(shots.freeze.duration+15);
-assert.equal(E("sceneTitle").textContent,shots.lose.title,"no-input ending uses loss");
-tick(shots.lose.duration+15);
-assert.equal(E("resultTitle").textContent,"NEXT STAGE!");
-playStart();
-tick(2500);
-E("pauseBtn").press();
-assert.ok(E("pauseOverlay").classList.contains("visible"));
-tick(3800);
-E("resumeBtn").press();
-tick(220);
-assert.equal(E("sceneTitle").textContent,shots.opening.title,"pause maintains playhead");
-console.log("KAWAII MOTION PASS: graph, audience system, five-beat flow, endings, retake, replay, timing, pause.");
+advance(shots[id].duration+15);
+assert.equal(el("sceneTitle").textContent,shots.win.title);
+advance(shots.win.duration+15);
+assert.equal(el("finalHero").textContent,finalHero,"replay fan total");
+assert.equal(el("finalRival").textContent,finalRival,"replay opponent total");
+el("resultRetakeBtn").press();
+assert.equal(el("retakesLeft").textContent,"00");
+assert.equal(el("sceneTitle").textContent,shots.heart.title);
+start();
+for(let i=0;i<5;i++){
+ const currentId=i?"freeze":"opening";
+ advance(shots[currentId].duration+20);
+ assert.equal(el("sceneTitle").textContent,shots.freeze.title,"recoverable miss clip");
+}
+advance(shots.freeze.duration+25);
+assert.equal(el("sceneTitle").textContent,shots.lose.title);
+advance(shots.lose.duration+20);
+assert.equal(el("resultTitle").textContent,"NEXT STAGE!");
+start();
+advance(1400);
+el("pauseBtn").press();
+assert.ok(el("pauseOverlay").classList.contains("visible"));
+advance(4000);
+el("resumeBtn").press();
+advance(150);
+assert.equal(el("sceneTitle").textContent,shots.opening.title,"pause freezes the scene clock");
+console.log("KAWAII MOTION RHYTHM PASS: charts, grades, freestyle transitions, 20 hits, fan score, retake, replay, endings, pause.");
