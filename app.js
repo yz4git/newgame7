@@ -135,6 +135,7 @@
     els.fighters.removeAttribute("data-motion");
     void els.fighters.offsetWidth;
     els.fighters.dataset.motion=currentNode.motion;
+    if(els.fighters.style.setProperty)els.fighters.style.setProperty("--shot-duration",currentNode.duration+"ms");
     els.sceneName.textContent=currentNode.location;
     els.shotNumber.textContent=currentNode.shot;
     els.shotTitle.textContent=currentNode.title;
