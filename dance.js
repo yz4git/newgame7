@@ -222,6 +222,8 @@
       const action=current.choices.find(x=>x.style===style);
       if(action){
         pending={action,fraction:elapsed/current.duration,grade};
+        els.cueLabel.textContent="DANCE LOCKED";
+        els.cueLabel.className="locked";
         els.hint.textContent=action.label+"へダンスを接続！";
         current.choices.forEach((a,i)=>{
           const b=els.choices.children[i];
