@@ -141,6 +141,11 @@
   <section id="pauseOverlay" class="overlay" aria-label="ポーズ">
     <div class="overlay-card"><div class="eyebrow">STAGE ON HOLD</div><h2>PAUSE</h2>
       <p>再開すると同じ映像の続きから進行します。</p>
+      <div class="timing-calibration">
+        <label for="timingOffset">タップ判定補正 <output id="timingOffsetValue">0 ms</output></label>
+        <input id="timingOffset" type="range" min="-120" max="120" step="10" value="0" aria-label="判定タイミング補正">
+        <div class="timing-scale"><span>−120ms（遅めのタップ）</span><span>＋120ms（早めのタップ）</span></div>
+      </div>
       <button id="resumeBtn" type="button" class="primary-btn">▶ RESUME</button>
       <button id="exitBtn" type="button" class="secondary-btn">タイトルへ</button></div>
   </section>
