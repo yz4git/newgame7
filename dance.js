@@ -18,13 +18,13 @@
     chainText:$("chainText"),choices:$("choices"),hypeFill:$("hypeFill"),hypeText:$("hypeText"),
     hint:$("gameHint"),fanPopup:$("fanPopup"),retakesLeft:$("retakesLeft"),retake:$("retakeBtn"),
     clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),packFile:$("packFile"),packState:$("packState"),assetState:$("assetState"),reel:$("reel"),
-    notes:$("noteContainer"),noteFeedback:$("noteFeedback"),noteHighway:$("noteHighway"),finalAccuracy:$("finalAccuracy")
+    notes:$("noteContainer"),noteFeedback:$("noteFeedback"),noteHighway:$("noteHighway"),phraseLabel:$("phraseLabel"),finalAccuracy:$("finalAccuracy")
   };
   const overlays=[els.title,els.result,els.pause,els.library];
   const runtimeMedia=new Map();
   let manifest={},mediaToken=0,enterAt=performance.now(),pauseStarted=0;
   let current=shots.opening,incoming=null,pending=null,libraryReturn="title",replaySteps=[],replayAt=0;
-  let audio=null,soundOn=true,sceneRhythm=null,segmentStart=null;
+  let soundOn=true,sceneRhythm=null,segmentStart=null;
   let run=resetRun();
 
   function resetRun(){
@@ -45,19 +45,7 @@
     overlays.forEach(el=>el.classList.toggle("visible",el===overlay));
   }
   function note(freq=550,length=.08,type="sine"){
-    if(!soundOn)return;
-    try{
-      audio ||= new (window.AudioContext||window.webkitAudioContext)();
-      if(audio.state==="suspended")audio.resume().catch(()=>{});
-      const osc=audio.createOscillator(),gain=audio.createGain(),time=audio.currentTime;
-      osc.type=type;osc.frequency.setValueAtTime(freq,time);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(150,freq*.74),time+length);
-      gain.gain.setValueAtTime(.001,time);
-      gain.gain.exponentialRampToValueAtTime(.043,time+.006);
-      gain.gain.exponentialRampToValueAtTime(.001,time+length);
-      osc.connect(gain);gain.connect(audio.destination);
-      osc.start(time);osc.stop(time+length+.01);
-    }catch(_){}
+    if(soundOn)beatSound.effect(freq,length,type);
   }
   function popup(text){
     els.fanPopup.textContent=text;
@@ -171,7 +159,7 @@
     if(!active)return;
     for(const n of sceneRhythm.notes){
       const token=document.createElement("div");
-      token.className="note-token"+(n.kind==="freestyle"?" freestyle":"");
+      token.className="note-token"+(n.kind==="freestyle"?" freestyle":"")+" accent-"+n.accent;
       if(n.style)token.dataset.style=n.style;
       token.textContent=n.kind==="freestyle"?"★ FREE STYLE — 好きな色！":
         data.styles[n.style].icon;
@@ -259,13 +247,13 @@
       if(!n.rivalAwarded && elapsed>=n.at){
         n.rivalAwarded=true;
         const rival=data.rivalStyles[Math.min(run.beat,data.maxBeats-1)];
-        const value=73+(rival===readMood().style?15:0)+(run.beat%2?6:0);
+        const value=97+(rival===readMood().style?22:0)+(run.beat%2?7:0);
         run.rivalFans+=value;
         changed=true;
         recordRhythmEvent("rival",n,n.at,{fans:value});
       }
     }
-    for(const n of rhythm.expire(sceneRhythm.notes,elapsed))missedNote(n,n.at+rhythm.WINDOW+1);
+    for(const n of rhythm.expire(sceneRhythm.notes,elapsed))missedNote(n,n.at+(n.window??rhythm.WINDOW)+1);
     if(changed)display();
   }
   function replayRhythm(elapsed){
@@ -291,8 +279,12 @@
     segmentStart=run.phase==="playing"&&!run.finished&&!current.terminal?snapshot():null;
     sceneRhythm=!current.terminal&&!run.finished?
       {notes:rhythm.chart(current,readMood().style,data.rivalStyles[Math.min(run.beat,data.maxBeats-1)],run.beat),events:[],replayCursor:0}:null;
-    beatSound.start();
+    beatSound.start(run.beat);
     resetNoteHighway();
+    if(els.phraseLabel){
+      const phrase=rhythm.pattern(run.beat);
+      els.phraseLabel.textContent="♫ "+phrase.name+" · "+(sceneRhythm?.notes.length||0)+" NOTES";
+    }
     els.stage.dataset.scene=current.scene;
     els.stage.dataset.motion="";
     void els.stage.offsetWidth;
@@ -532,6 +524,7 @@
       els.rhythmPointer.style.left=(frac*100)+"%";
       els.secondsLeft.textContent=(Math.max(0,node.duration-elapsed)/1000).toFixed(1)+"s";
       beatSound.schedule(elapsed);
+      els.stage.style.setProperty?.("--beat-glow",rhythm.pulse(elapsed).toFixed(3));
       moveNotes(elapsed);
       if(!run.finished&&!node.terminal){
         if(run.phase==="playing")resolveRhythm(elapsed);
