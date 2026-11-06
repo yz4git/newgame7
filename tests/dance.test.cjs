@@ -98,6 +98,12 @@ function perform(nodeId,round,finishStyle){
  return choice.next;
 }
 assert.ok(el("titleOverlay").classList.contains("visible"));
+assert.equal(el("timingOffsetValue").textContent,"0 ms");
+el("timingOffset").value="40";el("timingOffset").fire("input");
+assert.equal(el("timingOffsetValue").textContent,"+40 ms","positive input calibration");
+el("timingOffset").value="-60";el("timingOffset").fire("input");
+assert.equal(el("timingOffsetValue").textContent,"-60 ms","negative input calibration");
+el("timingOffset").value="0";el("timingOffset").fire("input");
 start();
 // Missing the first note breaks the combo but later notes can still be played.
 advance(1090);
