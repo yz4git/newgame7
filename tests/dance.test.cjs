@@ -11,17 +11,25 @@ assert.equal(core.BPM,118);
 assert.equal(graph.maxBeats,5);
 assert.equal(graph.moods.length,5);
 assert.ok(Object.keys(shots).length>=14);
+const DENSITY=[4,5,6,6,7];
+assert.equal(DENSITY.reduce((a,b)=>a+b,0),28);
 for(const node of Object.values(shots)){
  if(node.terminal)continue;
  assert.equal(node.choices.length,3);
  assert.deepEqual(node.choices.map(c=>c.style),["cute","cool","surprise"]);
- const pattern=core.chart(node,"cute","cool",1);
- assert.equal(pattern.length,4);
- assert.equal(pattern[0].style,"cute");
- assert.equal(pattern[3].kind,"freestyle");
- assert.ok(pattern[3].at+core.WINDOW<node.duration*node.cutAt);
+ for(let round=0;round<5;round++){
+  const pattern=core.chart(node,"cute","cool",round);
+  assert.equal(pattern.length,DENSITY[round],"round "+round+" density");
+  assert.equal(pattern[pattern.length-1].kind,"freestyle");
+  assert.ok(pattern[pattern.length-1].at+pattern[pattern.length-1].window<node.duration*node.cutAt);
+  assert.ok(pattern.every((n,i)=>n.window>0 && (i===0 || n.at>pattern[i-1].at)));
+  assert.ok(pattern.every(n=>Math.abs((n.at-core.ORIGIN)/core.GRID-Math.round((n.at-core.ORIGIN)/core.GRID))<.01));
+ }
  for(const action of node.choices)assert.ok(shots[action.next]);
 }
+assert.equal(core.pattern(4).name,"FINALE");
+assert.ok(core.pulse(core.ORIGIN)>.99);
+assert.equal(core.pulse(core.ORIGIN+300),0);
 const sample=core.chart(shots.opening,"cute","cool",0);
 assert.equal(core.tap(sample,"surprise",0).type,"ignored");
 assert.equal(core.tap(sample,"cute",sample[0].at+10).grade,"perfect");
@@ -65,7 +73,7 @@ const count=id=>Number(el(id).textContent.replace(/,/g,""));
 function start(){
  el("startBtn").press();
  assert.equal(el("sceneTitle").textContent,shots.opening.title);
- assert.equal(el("noteContainer").children.length,4,"four notes per shot");
+ assert.equal(el("noteContainer").children.length,4,"opening starts with four notes");
 }
 function perform(nodeId,round,finishStyle){
  const node=shots[nodeId];
@@ -79,9 +87,10 @@ function perform(nodeId,round,finishStyle){
    assert.ok(pad>=0);
    el("choices").children[pad].press();
  }
- assert.equal(el("noteContainer").children.length,4);
+ assert.equal(el("noteContainer").children.length,chart.length,"authored notes for round "+round);
  assert.ok(el("cueLabel").textContent.includes("LOCKED"),"last note selects the branch");
  assert.equal(el("roundBadge").textContent,"BEAT "+String(round+1).padStart(2,"0")+" / 05");
+ assert.ok(el("phraseLabel").textContent.includes(core.pattern(round).name),"phrase feedback");
  const endAt=node.duration*node.cutAt+35;
  advance(endAt-(clock-entered));
  const choice=node.choices.find(c=>c.style===finishStyle);
@@ -119,7 +128,7 @@ assert.equal(el("sceneTitle").textContent,shots.win.title,"perfect sequence wins
 advance(shots.win.duration+15);
 assert.equal(el("resultTitle").textContent,"ENCORE!");
 assert.equal(el("reel").children.length,5);
-assert.ok(el("finalAccuracy").textContent.includes("PERFECT 20"),"20 precise notes");
+assert.ok(el("finalAccuracy").textContent.includes("PERFECT 28"),"28 precisely timed notes");
 const finalHero=el("finalHero").textContent,finalRival=el("finalRival").textContent;
 el("replayBtn").press();
 id="opening";
@@ -155,4 +164,4 @@ advance(4000);
 el("resumeBtn").press();
 advance(150);
 assert.equal(el("sceneTitle").textContent,shots.opening.title,"pause freezes the scene clock");
-console.log("KAWAII MOTION RHYTHM PASS: charts, grades, freestyle transitions, 20 hits, fan score, retake, replay, endings, pause.");
+console.log("KAWAII MOTION RHYTHM PASS: five musical phrases, 28 hits, freestyle transitions, fan score, retake, replay, endings, pause.");
