@@ -59,7 +59,7 @@
       choice("groove","キレよく決める","cool","groove",240,"空気を切り替える"),
       choice("sparkle","大サプライズ","surprise","sparkle",255,"大きな歓声を狙う")
     ]),
-    freeze:shot("freeze","MISS THE BEAT","sunset","opening","次のポーズに迷った。ここから立て直そう！",3050,[
+    freeze:shot("freeze","MISS THE BEAT","sunset","opening","次のポーズに迷った。ここから立て直そう！",3300,[
       choice("smile","笑顔で再開","cute","heart",190,"気持ちを切り替える"),
       choice("step","リズムを戻す","cool","step",195,"落ち着いて再挑戦"),
       choice("flash","一発逆転演出","surprise","sparkle",205,"照明で流れを変える")
