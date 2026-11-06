@@ -18,13 +18,18 @@
     chainText:$("chainText"),choices:$("choices"),hypeFill:$("hypeFill"),hypeText:$("hypeText"),
     hint:$("gameHint"),fanPopup:$("fanPopup"),retakesLeft:$("retakesLeft"),retake:$("retakeBtn"),
     clipNode:$("clipNode"),clipEntry:$("clipEntry"),clipFile:$("clipFile"),packFile:$("packFile"),packState:$("packState"),assetState:$("assetState"),reel:$("reel"),
-    notes:$("noteContainer"),noteFeedback:$("noteFeedback"),noteHighway:$("noteHighway"),phraseLabel:$("phraseLabel"),finalAccuracy:$("finalAccuracy")
+    notes:$("noteContainer"),noteFeedback:$("noteFeedback"),noteHighway:$("noteHighway"),phraseLabel:$("phraseLabel"),finalAccuracy:$("finalAccuracy"),
+    timingOffset:$("timingOffset"),timingOffsetValue:$("timingOffsetValue")
   };
   const overlays=[els.title,els.result,els.pause,els.library];
   const runtimeMedia=new Map();
   let manifest={},mediaToken=0,enterAt=performance.now(),pauseStarted=0;
   let current=shots.opening,incoming=null,pending=null,libraryReturn="title",replaySteps=[],replayAt=0;
-  let soundOn=true,sceneRhythm=null,segmentStart=null;
+  let soundOn=true,sceneRhythm=null,segmentStart=null,timingOffsetMs=0;
+  try{
+    const saved=Number(localStorage.getItem("kawaii-motion-tap-offset"));
+    if(Number.isFinite(saved))timingOffsetMs=clamp(saved,-120,120);
+  }catch(_){}
   let run=resetRun();
 
   function resetRun(){
@@ -229,7 +234,7 @@
     const action=current.choices.find(a=>a.id===id);
     if(!action)return;
     const elapsed=performance.now()-enterAt;
-    const result=rhythm.tap(sceneRhythm.notes,action.style,elapsed);
+    const result=rhythm.tap(sceneRhythm.notes,action.style,elapsed+timingOffsetMs);
     if(result.type==="ignored"){
       els.hint.textContent="光るノーツがラインに来たらタップ！";
       return;
@@ -581,6 +586,15 @@
   $("titleLibraryBtn").addEventListener("click",openLibrary);
   $("closeLibraryBtn").addEventListener("click",closeLibrary);
   $("clearClipBtn").addEventListener("click",clearFile);
+  els.timingOffset.value=String(timingOffsetMs);
+  els.timingOffsetValue.textContent=(timingOffsetMs>0?"+":"")+timingOffsetMs+" ms";
+  els.timingOffset.addEventListener("input",()=>{
+    const next=Number(els.timingOffset.value);
+    if(!Number.isFinite(next))return;
+    timingOffsetMs=clamp(Math.round(next/10)*10,-120,120);
+    els.timingOffsetValue.textContent=(timingOffsetMs>0?"+":"")+timingOffsetMs+" ms";
+    try{localStorage.setItem("kawaii-motion-tap-offset",String(timingOffsetMs));}catch(_){}
+  });
   $("soundBtn").addEventListener("click",()=>{
     soundOn=!soundOn;$("soundBtn").textContent=soundOn?"♪":"♩";
     $("soundBtn").setAttribute("aria-label",soundOn?"サウンドをオフ":"サウンドをオン");
