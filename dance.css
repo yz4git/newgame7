@@ -152,3 +152,12 @@ body{touch-action:manipulation}button,input,select{font:inherit}button{border:0;
 .stage[data-motion="disco"] .hero .figure{animation-duration:calc(var(--beat-duration) * 2)}
 .stage[data-motion="orbit"] .hero .figure,.stage[data-motion="finale"] .hero .figure{animation-duration:calc(var(--beat-duration) * 4)}
 @media(prefers-reduced-motion:reduce){.note-highway:before{opacity:0}.note-target-line{transform:none}}
+
+
+/* Optional iPhone touch-latency calibration (adjusts judgment only). */
+.timing-calibration{border:1px solid #745c8299;background:#2d1f4099;border-radius:12px;padding:14px 13px;margin:16px 0 12px;text-align:left}
+.timing-calibration label{font-size:12px;font-weight:850;display:flex;justify-content:space-between;gap:12px;align-items:center;color:#fbe1f1}
+.timing-calibration output{font-variant-numeric:tabular-nums;color:#a9ffdf;font-size:14px}
+.timing-calibration input[type="range"]{display:block;width:100%;height:35px;margin:7px 0 0;accent-color:#ffa6d5;touch-action:pan-x}
+.timing-scale{display:flex;justify-content:space-between;gap:8px;color:#c0a6d6;font-size:9px;line-height:1.4}
+.timing-scale span:last-child{text-align:right}
