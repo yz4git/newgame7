@@ -129,16 +129,18 @@ async function runVariant(v){
   assert.equal(misses.length,0,"all 28 taps registered; missed="+JSON.stringify(misses));
   assert.ok(play.finalAccuracy.includes("MISS 0"),"accuracy reports 0 misses");
   assert.ok(/PERFECT 2[0-8]/.test(play.finalAccuracy),"most authored notes hit precisely");
-  await page.locator("#replayBtn").click();
-  // Replay is synchronous after click; do not wait until the next cut to assert
-  // the opening verse, because slower WebKit engines can cross scene boundaries.
-  const replay=await page.evaluate(()=>({
-    title:document.getElementById("sceneTitle").textContent,
-    hero:document.getElementById("heroFans").textContent,
-    hasNotes:document.getElementById("noteContainer").children.length,
-    resultVisible:document.getElementById("resultOverlay").classList.contains("visible")
-  }));
-  assert.equal(replay.hasNotes,4,"replay starts with verse chart");
+  // Sample the replay state in the very same browser task that dispatches
+  // the click. Separating click and read causes multi-second drift in WebKit.
+  const replay=await page.evaluate(()=>{
+    document.getElementById("replayBtn").click();
+    return {
+      title:document.getElementById("sceneTitle").textContent,
+      hero:document.getElementById("heroFans").textContent,
+      hasNotes:document.getElementById("noteContainer").children.length,
+      resultVisible:document.getElementById("resultOverlay").classList.contains("visible")
+    };
+  });
+  assert.equal(replay.hasNotes,4,"replay starts with verse chart: "+JSON.stringify(replay));
   assert.ok(!replay.resultVisible,"replay leaves result screen");
   await page.waitForTimeout(500);
   assert.equal(errors.length,0,"browser errors: "+JSON.stringify(errors));
