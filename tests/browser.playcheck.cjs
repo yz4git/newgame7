@@ -1,5 +1,5 @@
 /* Browser game-play audit. Runs the actual HTML/CSS/JS in Chromium / WebKit.
-   Script executes a full 20-note set with UI pointer events on the actual button DOM. */
+   Script executes a full 28-note five-phrase set with UI pointer events on the actual button DOM. */
 const { chromium,webkit }=require("playwright");
 const fs=require("node:fs");
 const assert=require("node:assert/strict");
@@ -69,7 +69,6 @@ async function runVariant(v){
   const play=await page.evaluate(async ()=>{
     const styles=["cute","cool","surprise"];
     const route=["cute","cool","surprise","cute","cool"];
-    const BPM=118,STEP=60000/BPM,FIRST=820;
     const report=[];
     function waitForScene(nextId){
       return new Promise((resolve,reject)=>{
@@ -90,7 +89,7 @@ async function runVariant(v){
       const chart=core.chart(node,window.KAWAII_GRAPH.moods[round].style,window.KAWAII_GRAPH.rivalStyles[round],round);
       const sceneStart=Number(document.getElementById("stage").dataset.startedAt);
       const beats=[];
-      for(let i=0;i<4;i++){
+      for(let i=0;i<chart.length;i++){
         const style=chart[i].style||route[round];
         const ms=chart[i].at-(performance.now()-sceneStart);
         if(ms>0)await new Promise(resolve=>setTimeout(resolve,ms));
@@ -103,7 +102,7 @@ async function runVariant(v){
       const next=node.choices.find(c=>c.style===route[round]).next;
       await waitForScene({text:nodes[next].title});
       id=next;
-      report.push({round:round+1,shots:node.id+" → "+next,beats,
+      report.push({round:round+1,phrase:core.pattern(round).name,shots:node.id+" → "+next,beats,
         hero:document.getElementById("heroFans").textContent,
         rival:document.getElementById("rivalFans").textContent,
         combo:document.getElementById("chainText").textContent});
@@ -126,8 +125,10 @@ async function runVariant(v){
   assert.equal(play.reelCount,5,"five video branches logged");
   const grades=play.report.flatMap(x=>x.beats.map(y=>y.judgment));
   const misses=grades.filter(x=>!/(PERFECT|GREAT|GOOD)/.test(x));
-  assert.equal(misses.length,0,"all 20 auto taps registered; missed="+JSON.stringify(misses));
+  assert.equal(grades.length,28,"all five musical phrases contain 28 notes");
+  assert.equal(misses.length,0,"all 28 taps registered; missed="+JSON.stringify(misses));
   assert.ok(play.finalAccuracy.includes("MISS 0"),"accuracy reports 0 misses");
+  assert.ok(/PERFECT 2[0-8]/.test(play.finalAccuracy),"most authored notes hit precisely");
   await page.locator("#replayBtn").click();
   await page.waitForTimeout(2100);
   const replay=await page.evaluate(()=>({
@@ -135,7 +136,7 @@ async function runVariant(v){
     hero:document.getElementById("heroFans").textContent,
     hasNotes:document.getElementById("noteContainer").children.length
   }));
-  assert.ok(replay.hasNotes===4,"replay visibly displays mapped rhythm notes");
+  assert.ok(replay.hasNotes===4,"replay begins from four-note verse");
   assert.equal(errors.length,0,"browser errors: "+JSON.stringify(errors));
   // A real mobile browser touch (not only an injected pointer event).
   await page.evaluate(()=>document.getElementById("restartBtn").click());
