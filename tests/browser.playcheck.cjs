@@ -130,13 +130,17 @@ async function runVariant(v){
   assert.ok(play.finalAccuracy.includes("MISS 0"),"accuracy reports 0 misses");
   assert.ok(/PERFECT 2[0-8]/.test(play.finalAccuracy),"most authored notes hit precisely");
   await page.locator("#replayBtn").click();
-  await page.waitForTimeout(2100);
+  // Replay is synchronous after click; do not wait until the next cut to assert
+  // the opening verse, because slower WebKit engines can cross scene boundaries.
   const replay=await page.evaluate(()=>({
     title:document.getElementById("sceneTitle").textContent,
     hero:document.getElementById("heroFans").textContent,
-    hasNotes:document.getElementById("noteContainer").children.length
+    hasNotes:document.getElementById("noteContainer").children.length,
+    resultVisible:document.getElementById("resultOverlay").classList.contains("visible")
   }));
-  assert.ok(replay.hasNotes===4,"replay begins from four-note verse");
+  assert.equal(replay.hasNotes,4,"replay starts with verse chart");
+  assert.ok(!replay.resultVisible,"replay leaves result screen");
+  await page.waitForTimeout(500);
   assert.equal(errors.length,0,"browser errors: "+JSON.stringify(errors));
   // A real mobile browser touch (not only an injected pointer event).
   await page.evaluate(()=>document.getElementById("restartBtn").click());
