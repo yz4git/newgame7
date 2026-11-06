@@ -129,3 +129,26 @@ body{touch-action:manipulation}button,input,select{font:inherit}button{border:0;
 .control-panel{min-height:235px}
 @media(max-height:735px){.control-panel{min-height:218px}}
 @media(max-height:625px){.control-panel{min-height:200px}}
+
+
+/* Song progression: chart density grows across five musical phrases. */
+.stage{--beat-glow:0;--beat-duration:.5084746s}
+.note-highway:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  opacity:calc(var(--beat-glow,0) * .44);
+  background:radial-gradient(ellipse at 50% 78%,#ffe7b6bd,transparent 55%);
+}
+.note-target-line{transform:scaleY(calc(1 + var(--beat-glow,0) * .62));transform-origin:center;
+  filter:drop-shadow(0 0 calc(4px + var(--beat-glow,0) * 12px) #fff4c3);
+}
+.note-token.accent-strong{border-width:3px;outline:1px solid #ffe6bb99}
+.note-token.accent-offbeat{border-style:dashed}
+.note-token.freestyle{border-style:solid}
+.choice-heading #phraseLabel{color:#ffe0b6;font-size:10px;letter-spacing:.11em}
+.stage[data-motion="groove"] .hero .figure,.stage[data-motion="step"] .hero .figure{animation-duration:var(--beat-duration)}
+.stage[data-motion="heart"] .hero .figure,.stage[data-motion="wink"] .hero .figure,.stage[data-motion="cheer"] .hero .figure{animation-duration:calc(var(--beat-duration) * 2)}
+.stage[data-motion="heart"] .hero .arm-a,.stage[data-motion="heart"] .hero .arm-b,
+.stage[data-motion="wink"] .hero .arm-a,.stage[data-motion="wink"] .hero .arm-b{animation-duration:calc(var(--beat-duration) * 2)}
+.stage[data-motion="sparkle"] .hero .figure,.stage[data-motion="ribbon"] .hero .figure,
+.stage[data-motion="disco"] .hero .figure{animation-duration:calc(var(--beat-duration) * 2)}
+.stage[data-motion="orbit"] .hero .figure,.stage[data-motion="finale"] .hero .figure{animation-duration:calc(var(--beat-duration) * 4)}
+@media(prefers-reduced-motion:reduce){.note-highway:before{opacity:0}.note-target-line{transform:none}}
