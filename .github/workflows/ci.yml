@@ -15,6 +15,8 @@ jobs:
           node-version: '22'
       - name: KAWAII MOTION full gameplay
         run: node tests/dance.test.cjs
+      - name: KAWAII MOTION original soundtrack and mute
+        run: node tests/rhythm-audio.test.cjs
       - name: KAWAII MOTION ZIP clip pack
         run: node tests/clip-pack.test.cjs
       - name: Verify bundled preview MP4 files
