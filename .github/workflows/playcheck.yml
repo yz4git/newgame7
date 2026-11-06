@@ -11,6 +11,9 @@ on:
       - 'rhythm*.js'
       - 'tests/browser.playcheck.cjs'
       - '.github/workflows/playcheck.yml'
+concurrency:
+  group: kawaii-iphone-playcheck-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
