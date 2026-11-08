@@ -81,8 +81,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   #app {
     width: 100%;
     max-width: none;
-    padding-left: 2px;
-    padding-right: 2px;
+    padding-left: 1px;
+    padding-right: 1px;
     gap: 4px;
   }
   #app > .top, #app > .hud, #app > .feedback, #app > .actions {
@@ -102,7 +102,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     max-width: none;
   }
   .map-frame {
-    padding: 2px;
+    padding: 1px;
     border-radius: 5px;
     flex-shrink: 0;
   }
