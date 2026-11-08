@@ -18,8 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Stamp every release with the commit SHA
+        run: node scripts/stamp-release.cjs "$GITHUB_SHA"
       - name: Validate static game
-        run: test -s index.html && test -s engine.js && test -s game.js && test -s style.css
+        run: test -s index.html && test -s engine.js && test -s game.js && test -s style.css && test -s version.json && ! grep -q __DW_BUILD__ index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

@@ -8,7 +8,7 @@
 <meta name="description" content="指一本で探索する、環境連鎖型ターン制ローグライク。タップ・スワイプ・長押しで12層の深淵へ。">
 <title>深界の織り手 — DEEP WEAVE</title>
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="./icon.svg">
-<link rel="stylesheet" href="./style.css?v=0.3.0">
+<link rel="stylesheet" href="./style.css?v=__DW_BUILD__">
 </head><body>
 <main id="app">
 <header class="top">
@@ -50,5 +50,72 @@
 <div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modal-box"><h2 id="modalTitle">深界の織り手</h2><div id="modalBody"></div><div id="modalActions" class="modal-actions"></div></div>
 </div>
-<script src="./engine.js"></script><script src="./game.js?v=0.3.0"></script>
+<script>
+/*
+ * Boot-time release sync. No background polling and no game interruption.
+ * GitHub Pages stamps __DW_BUILD__ at deploy time with the commit SHA.
+ */
+(async () => {
+  'use strict';
+  const embedded = '__DW_BUILD__';
+  const boot = { embeddedVersion: embedded, servedVersion: embedded, checked: false, redirected: false, fallback: false };
+  window.__deepWeaveBoot = boot;
+  let version = embedded;
+  try {
+    const resource = new URL('./version.json', document.baseURI);
+    resource.searchParams.set('startup', Date.now().toString(36));
+    const response = await fetch(resource.href, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Version check HTTP ' + response.status);
+    const json = await response.json();
+    if (!json || typeof json.version !== 'string' || !/^[a-zA-Z0-9._-]{1,80}$/.test(json.version)) {
+      throw new Error('Invalid release version');
+    }
+    version = json.version;
+  } catch (error) {
+    // Offline: keep the cached/same-build shell usable without losing the run.
+    boot.fallback = true;
+    console.info('DEEP WEAVE: using bundled release', String(error));
+  }
+  boot.checked = true;
+  boot.servedVersion = version;
+  const currentUrl = new URL(location.href);
+  if (version !== embedded && currentUrl.searchParams.get('dwv') !== version) {
+    // Query-busting the DOCUMENT is essential for changes to HTML/UI itself.
+    // When already on ?dwv=latest, do not redirect again: prevents loops
+    // if a hosting cache momentarily serves an older index.html.
+    currentUrl.searchParams.set('dwv', version);
+    boot.redirected = true;
+    location.replace(currentUrl.href);
+    return;
+  }
+  // JS uses the same release ID as the styles, and is only loaded AFTER
+  // a single startup check. No update requests are made during gameplay.
+  const withVersion = (path) => {
+    const u = new URL(path, document.baseURI);
+    u.searchParams.set('v', version);
+    return u.href;
+  };
+  const loadScript = (path) => new Promise((resolve, reject) => {
+    const tag = document.createElement('script');
+    tag.src = withVersion(path);
+    tag.async = false;
+    tag.onload = resolve;
+    tag.onerror = () => reject(new Error('Failed to load ' + path));
+    document.body.appendChild(tag);
+  });
+  try {
+    await loadScript('./engine.js');
+    await loadScript('./game.js');
+    boot.ready = true;
+  } catch (error) {
+    boot.ready = false;
+    console.error('DEEP WEAVE startup failed', error);
+    const notice = document.createElement('div');
+    notice.setAttribute('role', 'alert');
+    notice.style.cssText = 'padding:20px;color:#ffe0b1;text-align:center;line-height:1.8;font:15px sans-serif;background:#142a35';
+    notice.textContent = 'ゲームを読み込めませんでした。通信を確認し、ページを再読み込みしてください。';
+    document.body.prepend(notice);
+  }
+})();
+</script>
 </body></html>

@@ -15,6 +15,8 @@ jobs:
           node-version: '22'
       - name: Validate engine
         run: node tests/engine.test.cjs
+      - name: Validate release stamping without mutating tracked files
+        run: node tests/release.test.cjs
       - name: Validate scripts and entry points
         run: |
           node --check engine.js

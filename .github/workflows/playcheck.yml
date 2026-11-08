@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'version.json'
+      - 'scripts/stamp-release.cjs'
       - 'engine.js'
       - 'game.js'
       - 'style.css'

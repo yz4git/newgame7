@@ -7,9 +7,21 @@ async function run(){
     const browser=await engine.launch({headless:true});
     try{
       const context=await browser.newContext({...devices['iPhone 13'],viewport:{width:390,height:844},deviceScaleFactor:3});
-      const page=await context.newPage(),errors=[];
+      const page=await context.newPage(),errors=[],versionRequests=[];
       page.on('pageerror',e=>errors.push(String(e)));
+      page.on('request',request=>{
+        if(new URL(request.url()).pathname.endsWith('/version.json'))versionRequests.push(request.url());
+      });
       await page.goto('http://127.0.0.1:8765/',{waitUntil:'networkidle'});
+      const boot=await page.evaluate(()=>window.__deepWeaveBoot);
+      assert.equal(boot.checked,true,'boot check did not run');
+      assert.equal(boot.ready,true,'game scripts did not load');
+      assert.equal(boot.servedVersion,'__DW_BUILD__','local release fallback mismatch');
+      assert.equal(boot.redirected,false);
+      assert.equal(versionRequests.length,1,'version should be fetched exactly once on startup');
+      const assetUrls=await page.evaluate(()=>Array.from(document.scripts).map(x=>x.src).filter(Boolean));
+      assert.ok(assetUrls.some(url=>url.includes('engine.js?v=__DW_BUILD__')));
+      assert.ok(assetUrls.some(url=>url.includes('game.js?v=__DW_BUILD__')));
       assert.match(await page.title(),/DEEP WEAVE/);
       await page.getByRole('button',{name:'探索を始める'}).click();
       await page.locator('#board').waitFor();
@@ -67,8 +79,35 @@ async function run(){
       assert.ok(short.left<=6&&short.right<=6,'short viewport side margins: '+JSON.stringify(short));
       assert.ok(short.doc<=short.viewport+1,'short viewport horizontal scroll: '+JSON.stringify(short));
       await page.screenshot({path:'playcheck-output/'+name+'-compact.png',fullPage:true});
+      assert.equal(versionRequests.length,1,'version polling happened during play');
+      // Simulate the release endpoint advancing while the app is open.
+      // The game must NEVER reload or interrupt the existing run.
+      await page.route('**/version.json?*', route=>route.fulfill({
+        status:200,contentType:'application/json',body:JSON.stringify({version:'simulated-upgrade'})
+      }));
+      await page.getByRole('button',{name:/1ターン待つ/}).click();
+      await page.waitForTimeout(250);
+      assert.equal(versionRequests.length,1,'release check should only happen at boot');
+      assert.equal(await page.evaluate(()=>window.__deepWeaveTest.getState().turn),after.turn+1);
       assert.deepEqual(errors,[],'browser errors');
-      await context.close();console.log(name+' OK: turn '+after.turn+', hp '+after.hp+', canvas '+layout.canvas);
+      // Different release only at a new launch: stale shell redirects once
+      // and then loads the versioned assets, without an infinite loop.
+      const second=await context.newPage();
+      const navigations=[];
+      second.on('framenavigated',frame=>{if(frame===second.mainFrame())navigations.push(frame.url());});
+      await second.route('**/version.json?*',route=>route.fulfill({
+        status:200,contentType:'application/json',body:JSON.stringify({version:'new-build-001'})
+      }));
+      await second.goto('http://127.0.0.1:8765/',{waitUntil:'networkidle'});
+      await second.waitForFunction(()=>window.__deepWeaveBoot?.ready===true);
+      assert.ok(new URL(second.url()).searchParams.get('dwv')==='new-build-001',
+        'startup must bypass stale HTML using versioned document URL');
+      assert.ok(navigations.length<=2,'reload loop detected: '+JSON.stringify(navigations));
+      const latest=await second.evaluate(()=>window.__deepWeaveBoot);
+      assert.equal(latest.servedVersion,'new-build-001');
+      assert.equal(latest.ready,true);
+      await second.close();
+      await context.close();console.log(name+' OK: boot-only check, update redirect, no game interruptions, turn '+after.turn+', canvas '+layout.canvas);
     }finally{await browser.close();}
   }
 }
