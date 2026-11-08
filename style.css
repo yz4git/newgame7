@@ -70,3 +70,57 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
  .feedback{min-height:34px}.action{min-height:47px}.top{min-height:35px}.hud{padding:5px 9px}
  .brand strong{font-size:14px}
 }
+
+
+/* v0.3: true edge-to-edge map on portrait phones.
+   Horizontal size must NOT be constrained by viewport height:
+   a short Safari dynamic viewport used to shrink the entire board,
+   creating large dead margins at the left and right. */
+@media (max-width: 600px) and (orientation: portrait) {
+  html, body {max-width: 100%; overflow-x: clip;}
+  #app {
+    width: 100%;
+    max-width: none;
+    padding-left: 2px;
+    padding-right: 2px;
+    gap: 4px;
+  }
+  #app > .top, #app > .hud, #app > .feedback, #app > .actions {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+  .map-wrap {
+    width: 100%;
+    flex: 0 0 auto;
+    align-items: stretch;
+    min-height: 0;
+    gap: 2px;
+  }
+  .map-frame, .map-corners {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .map-frame {
+    padding: 2px;
+    border-radius: 5px;
+    flex-shrink: 0;
+  }
+  #board {
+    display: block;
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 9 / 11;
+    height: auto;
+  }
+  .map-corners {padding: 0 4px;}
+  .copyright {margin-top: 0;}
+}
+@media (max-width: 600px) and (orientation: portrait) and (max-height: 740px) {
+  #app {padding-top: calc(env(safe-area-inset-top, 0px) + 2px);padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 3px);gap: 3px;}
+  .top {min-height:32px;}
+  .hud {padding: 5px 7px;}
+  .feedback {min-height: 30px;padding: 3px 7px;}
+  .action {min-height: 46px;}
+  .copyright {display:none;}
+}

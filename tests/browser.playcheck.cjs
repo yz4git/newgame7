@@ -16,6 +16,12 @@ async function run(){
       const before=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.equal(before.turn,0);
       const box=await page.locator('#board').boundingBox();assert.ok(box&&box.width>200);
+      const edge=await page.evaluate(()=>{
+        const v=window.innerWidth,r=document.querySelector('#board').getBoundingClientRect();
+        return {viewport:v,board:r.width,left:r.left,right:v-r.right};
+      });
+      assert.ok(edge.board>=edge.viewport*.975,'map is not edge-to-edge: '+JSON.stringify(edge));
+      assert.ok(edge.left<=6 && edge.right<=6,'side margins too large: '+JSON.stringify(edge));
       const mapView=await page.evaluate(()=>window.__deepWeaveTest.getViewport());
       assert.equal(mapView.columns,9);assert.equal(mapView.rows,11);
       assert.ok(mapView.tileCssPixels>=35,'touch cell too small: '+JSON.stringify(mapView));
@@ -50,6 +56,17 @@ async function run(){
       assert.ok(layout.width<=layout.viewport+1,'horizontal overflow '+JSON.stringify(layout));
       assert.ok(layout.canvas>0);
       await page.screenshot({path:'playcheck-output/'+name+'-iphone.png',fullPage:true});
+      // A short viewport must not shrink the game horizontally.
+      await page.setViewportSize({width:390,height:700});
+      await page.waitForTimeout(100);
+      const short=await page.evaluate(()=>{
+        const v=window.innerWidth,r=document.querySelector('#board').getBoundingClientRect();
+        return {viewport:v,board:r.width,left:r.left,right:v-r.right,doc:document.documentElement.scrollWidth};
+      });
+      assert.ok(short.board>=short.viewport*.975,'short mobile viewport shrank horizontally: '+JSON.stringify(short));
+      assert.ok(short.left<=6&&short.right<=6,'short viewport side margins: '+JSON.stringify(short));
+      assert.ok(short.doc<=short.viewport+1,'short viewport horizontal scroll: '+JSON.stringify(short));
+      await page.screenshot({path:'playcheck-output/'+name+'-compact.png',fullPage:true});
       assert.deepEqual(errors,[],'browser errors');
       await context.close();console.log(name+' OK: turn '+after.turn+', hp '+after.hp+', canvas '+layout.canvas);
     }finally{await browser.close();}
