@@ -181,3 +181,12 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 @media (display-mode:standalone) {
   :root { --dw-bottom-safe: max(24px, env(safe-area-inset-bottom, 0px)); }
 }
+
+
+/* Gameplay review: clearer terrain / warnings / readable battle history. */
+.feedback[role="button"] { cursor:pointer; touch-action:manipulation; }
+.feedback[role="button"]:active {background:linear-gradient(90deg,#2d4a4e99,transparent);}
+.feedback[role="button"]:focus-visible {outline:2px solid #f2cb87;outline-offset:2px;}
+.log-entry {padding:9px 8px;border-bottom:1px solid #49636a;font-size:12px;color:#dbe6e4;line-height:1.6;text-align:left;}
+.log-entry span {display:inline-block;color:#e9c889;font-size:10px;font-variant-numeric:tabular-nums;min-width:64px;}
+.hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}

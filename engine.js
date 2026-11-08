@@ -27,10 +27,10 @@
     ward:{name:'生命の印',glyph:'✧',color:'#c4b8ff',desc:'自動使用。最大HP+4、HP+4。'}
   };
   const THEMES = [
-    {name:'忘却の石廊',wall:'#3d4651',floor:'#343c42',accent:'#d8b880'},
-    {name:'地下の水脈',wall:'#2d4a52',floor:'#2e4048',accent:'#75c8d7'},
-    {name:'熾火の祭壇',wall:'#57403b',floor:'#433933',accent:'#eaa074'},
-    {name:'根の深層',wall:'#3c5141',floor:'#33463a',accent:'#a5cb83'}
+    {name:'忘却の石廊',wall:'#5b6b76',floor:'#283940',accent:'#d8b880'},
+    {name:'地下の水脈',wall:'#426a72',floor:'#263f4b',accent:'#75c8d7'},
+    {name:'熾火の祭壇',wall:'#75605a',floor:'#443b36',accent:'#eaa074'},
+    {name:'根の深層',wall:'#567660',floor:'#2f4438',accent:'#a5cb83'}
   ];
   function dist(a,b){return Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));}
   function key(x,y){return x+','+y;}
@@ -90,47 +90,73 @@
       this.stairs={x:last.cx,y:last.cy};
       // Floor-dependent interacting materials, always built on existing floors.
       const theme=this.themeIndex();
-      const clusters=5+this.floor*2;
+      const clusters=Math.min(11,4+Math.floor(this.floor/2));
       for(let i=0;i<clusters;i++){
-        const pool=this.freeSpot(4);if(!pool)continue;
-        const material=(theme===1?this.pick(['water','water','oil','bush']):theme===2?this.pick(['oil','oil','bush','water']):theme===3?this.pick(['bush','bush','water','oil']):this.pick(['water','oil','bush']));
-        for(let j=0;j<this.int(2,6);j++){
-          const x=pool.x+this.int(-2,2),y=pool.y+this.int(-2,2);
-          if(this.walkable(x,y)&&this.distanceToSafe(x,y)>2)this.tile(x,y).t=material;
+        const start=this.freeSpot(4);if(!start)continue;
+        const material=i===0?'water':i===1?'oil':i===2?'bush':
+          (theme===1?this.pick(['water','water','bush','oil']):
+           theme===2?this.pick(['oil','oil','bush','water']):
+           theme===3?this.pick(['bush','bush','water','oil']):this.pick(['water','oil','bush']));
+        const area=[start],visited=new Set([key(start.x,start.y)]);
+        let frontier=[start];
+        const limit=this.int(6,10);
+        for(let j=0;frontier.length&&j<limit*9&&area.length<limit;j++){
+          const origin=this.pick(frontier);
+          const choices=DIRS.slice(0,4).map(([dx,dy])=>({x:origin.x+dx,y:origin.y+dy}))
+            .filter(p=>this.walkable(p.x,p.y)&&this.distanceToSafe(p.x,p.y)>2&&!visited.has(key(p.x,p.y)));
+          if(!choices.length){frontier=frontier.filter(p=>p!==origin);continue;}
+          const point=this.pick(choices);
+          visited.add(key(point.x,point.y));area.push(point);frontier.push(point);
+        }
+        for(const p of area){
+          if(this.walkable(p.x,p.y)&&this.distanceToSafe(p.x,p.y)>2)
+            this.tile(p.x,p.y).t=material;
         }
       }
       // Keep the starting chamber safe and the staircase accessible.
       for(let y=this.player.y-1;y<=this.player.y+1;y++)for(let x=this.player.x-1;x<=this.player.x+1;x++)
         if(this.walkable(x,y))this.tile(x,y).t='floor';
       this.tile(this.stairs.x,this.stairs.y).t='floor';
-      for(let i=0;i<6+Math.floor(this.floor/2);i++){
+      for(let i=0;i<4+Math.floor(this.floor/3);i++){
         const p=this.freeSpot(5);if(p)this.traps.push({id:this.nextId++,x:p.x,y:p.y,used:false,known:false});
       }
-      const spawnCount=clamp(6+this.floor*2,8,23);
+      const spawnCount=clamp(Math.round(5+this.floor*1.35),7,18);
       for(let i=0;i<spawnCount;i++){
-        const p=this.freeSpot(5);if(!p)continue;
         let pool=['sprout','sprout','runner'];
         if(this.floor>=2)pool.push('archer','eel');
         if(this.floor>=4)pool.push('guard','witch');
         if(this.floor>=7)pool.push('brute','archer','witch');
         const type=this.pick(pool),def=MONSTERS[type];
-        if(this.enemyAt(p.x,p.y))continue;
-        this.enemies.push({id:this.nextId++,type,x:p.x,y:p.y,hp:def.hp,maxHp:def.hp,stun:0,windup:false,alert:false});
+        const favored=type==='eel'?'water':type==='witch'?'oil':type==='sprout'?'bush':type==='guard'?'water':null;
+        // Place opponents inside or beside interactable terrain when possible.
+        const p=this.freeSpot(4,this.rnd()<0.72?(favored||'any'):null) || this.freeSpot(5);
+        if(!p||this.enemyAt(p.x,p.y))continue;
+        this.enemies.push({id:this.nextId++,type,x:p.x,y:p.y,hp:def.hp,maxHp:def.hp,stun:0,windup:false,cast:null,alert:false});
       }
-      const itemCount=9+Math.floor(this.floor/3);
+      const itemCount=10+Math.floor(this.floor/3);
       for(let i=0;i<itemCount;i++){
         const p=this.freeSpot(3);if(!p||this.itemAt(p.x,p.y))continue;
-        let types=['heal','spark','frost','ember','gust','smoke','heal','spark'];
+        let types=['heal','spark','frost','ember','gust','smoke','heal','heal','spark','gust'];
         if(this.floor%3===0)types.push('blade','ward');
         this.items.push({id:this.nextId++,x:p.x,y:p.y,type:this.pick(types)});
       }
       this.updateVision();
     }
     distanceToSafe(x,y){return Math.min(dist({x,y},this.player),dist({x,y},this.stairs));}
-    freeSpot(minDistance){
-      for(let i=0;i<120;i++){
-        const x=this.int(2,W-3),y=this.int(2,H-3);
-        if(this.tile(x,y).t==='floor'&&this.distanceToSafe(x,y)>=minDistance&&!this.enemyAt(x,y)&&!this.itemAt(x,y)&&!this.trapAt(x,y))return {x,y};
+    freeSpot(minDistance, preferred=null){
+      for(let i=0;i<210;i++){
+        const x=this.int(2,W-3),y=this.int(2,H-3),t=this.tile(x,y);
+        if(!t||!this.walkable(x,y)||this.distanceToSafe(x,y)<minDistance||
+           this.enemyAt(x,y)||this.itemAt(x,y)||this.trapAt(x,y))continue;
+        if(preferred){
+          const tags=['water','oil','bush','ice'];
+          const nearby=DIRS.slice(0,4).some(([dx,dy])=>{
+            const neighbor=this.tile(x+dx,y+dy);
+            return neighbor && (preferred==='any'?tags.includes(neighbor.t):neighbor.t===preferred);
+          });
+          if(!(preferred==='any'?tags.includes(t.t):t.t===preferred)&&!nearby)continue;
+        }else if(t.t!=='floor')continue;
+        return {x,y};
       }
       return null;
     }
@@ -149,8 +175,16 @@
     }
     updateVision(){
       for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-        const t=this.tile(x,y);t.lit=dist(this.player,{x,y})<=6&&this.los(this.player.x,this.player.y,x,y);
+        const t=this.tile(x,y);
+        t.lit=dist(this.player,{x,y})<=6&&this.los(this.player.x,this.player.y,x,y);
         if(t.lit)t.seen=true;
+      }
+      // A trap becomes visible when the adventurer studies its surroundings.
+      // Discovering one never advances time and allows a deliberate detour.
+      for(const trap of this.traps){
+        if(!trap.used&&!trap.known&&dist(trap,this.player)<=2&&this.tile(trap.x,trap.y).lit){
+          trap.known=true;this.say('足元に罠の印が見える。回り込むか敵を誘導しよう。');
+        }
       }
     }
     pickUp(){
@@ -206,8 +240,8 @@
       if(this.floor>=MAX_FLOOR){
         this.won=true;this.say('星の核を取り戻した！ 深淵を踏破した。');return;
       }
-      this.floor++;this.hp=Math.min(this.maxHp,this.hp+4);this.generate();
-      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが少し回復。');
+      this.floor++;this.hp=Math.min(this.maxHp,this.hp+6);this.generate();
+      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが6回復。');
     }
     pathTo(x,y,adjacentToEnemy){
       x=Number(x);y=Number(y);
@@ -219,13 +253,16 @@
         open.sort((a,b)=>a.cost-b.cost);
         const p=open.shift(),k=key(p.x,p.y);
         if(p.cost>costs.get(k))continue;
-        if((adjacentToEnemy?Math.max(Math.abs(p.x-x),Math.abs(p.y-y))===1:k===goal)){best=k;break;}
+        if((adjacentToEnemy?(Math.max(Math.abs(p.x-x),Math.abs(p.y-y))===1 &&
+             !this.blockedDiagonal(p.x,p.y,x,y)):k===goal)){best=k;break;}
         for(const [dx,dy] of DIRS){
           const nx=p.x+dx,ny=p.y+dy;
-          if(!this.walkable(nx,ny)||this.blockedDiagonal(p.x,p.y,nx,ny)||this.enemyAt(nx,ny))continue;
+          if(!this.walkable(nx,ny)||this.blockedDiagonal(p.x,p.y,nx,ny)||
+             (adjacentToEnemy&&this.enemyAt(nx,ny)))continue;
           const tile=this.tile(nx,ny);
-          const danger=(tile.t==='fire'||tile.fire>0?15:0)+(this.trapAt(nx,ny)?.known?10:0);
-          const next=p.cost+(dx&&dy?1.4:1)+danger;
+          const danger=(tile.fire>0?28:0)+(this.trapAt(nx,ny)?.known?26:0)+
+            (tile.t==='oil'||tile.t==='bush'?0.2:0);
+          const next=p.cost+(dx&&dy?1.4:1)+danger+(this.enemyAt(nx,ny)?12:0);
           const nk=key(nx,ny);
           if(next<(costs.get(nk)??Infinity)){costs.set(nk,next);prev.set(nk,k);open.push({x:nx,y:ny,cost:next});}
         }
@@ -237,7 +274,8 @@
     }
     canSeeDanger(){
       return this.enemies.some(e=>e.hp>0&&this.tile(e.x,e.y)?.lit&&dist(e,this.player)<=6)||
-        DIRS.some(([dx,dy])=>{const t=this.trapAt(this.player.x+dx,this.player.y+dy);return t&&t.known;});
+        DIRS.some(([dx,dy])=>{const x=this.player.x+dx,y=this.player.y+dy;
+          return (this.trapAt(x,y)?.known||this.tile(x,y)?.fire>0);});
     }
     validTarget(x,y,range=6){
       return this.inside(x,y)&&dist(this.player,{x,y})<=range&&this.los(this.player.x,this.player.y,x,y);
@@ -317,7 +355,10 @@
         this.walkable(p.x,p.y)&&!this.enemyAt(p.x,p.y)&&!(p.x===this.player.x&&p.y===this.player.y)&&
         !this.blockedDiagonal(e.x,e.y,p.x,p.y)&&!(this.tile(p.x,p.y).fire>0&&e.type!=='witch'));
       if(!options.length)return;
-      options.sort((a,b)=>dist(a,this.player)-dist(b,this.player)+(this.rnd()-.5)*.3);
+      const terrainBias=(p)=>{const t=this.tile(p.x,p.y).t;
+        return e.type==='eel'&&t==='water'?-0.6:e.type==='sprout'&&t==='bush'?-0.3:
+          e.type==='witch'&&t==='oil'?-0.45:0;};
+      options.sort((a,b)=>dist(a,this.player)-dist(b,this.player)+terrainBias(a)-terrainBias(b));
       const next=options[0];
       if(dist(next,this.player)<d||this.rnd()<0.12){e.x=next.x;e.y=next.y;this.triggerTrap(e);}
     }
@@ -347,7 +388,20 @@
         if(e.hp<=0)continue;
         const t=this.tile(e.x,e.y);
         if(t.fire>0&&e.type!=='witch'){this.damageEnemy(e,3,'炎が'+MONSTERS[e.type].name+'を焼いた。');if(e.hp<=0)continue;}
-        if(e.stun>0){e.stun--;continue;}
+        if(e.stun>0){e.stun--;e.cast=null;e.windup=false;continue;}
+        if(e.cast){
+          const spell=e.cast;e.cast=null;
+          const reach=dist(e,this.player),sight=this.los(e.x,e.y,this.player.x,this.player.y);
+          if(spell==='arrow'&&reach<=4&&sight){
+            this.hp-=2;this.say('射手の予告された矢が命中！ -2HP');
+          }else if(spell==='fire'&&reach<=4&&sight){
+            const p=this.tile(this.player.x,this.player.y);
+            if(p.t!=='water'&&p.t!=='ice'){
+              p.fire=2;this.say('火術師の炎が足元に残った！ 次に動く前に退避しよう。');
+            }
+          }else this.say('敵の狙いを外した！');
+          this.checkDeath();if(!this.alive)break;continue;
+        }
         const d=dist(e,this.player),visible=this.los(e.x,e.y,this.player.x,this.player.y);
         if(e.windup){
           e.windup=false;
@@ -359,11 +413,11 @@
           if(e.type==='brute'){e.windup=true;this.say('重装獣が大きく腕を振り上げた！');continue;}
           const hit=MONSTERS[e.type].atk+(e.type==='eel'&&this.tile(this.player.x,this.player.y).t==='water'?2:0);
           this.hp-=hit;this.say(MONSTERS[e.type].name+'から'+hit+'ダメージ。');this.checkDeath();if(!this.alive)break;
-        }else if(e.type==='archer'&&d<=4&&visible&&this.turn%2===0){
-          this.hp-=2;this.say('射手の矢が飛んできた！ -2HP');this.checkDeath();if(!this.alive)break;
-        }else if(e.type==='witch'&&d<=4&&visible&&this.rnd()<0.26){
-          const p=this.tile(this.player.x,this.player.y);
-          if(p.t!=='water'&&p.t!=='ice'){p.fire=2;this.say('火術師が足元に火を放った！');}
+        }else if(e.type==='archer'&&d<=4&&visible){
+          e.cast='arrow';this.say('射手が弓を引いた！ 次のターンに射撃。');
+        }else if(e.type==='witch'&&d<=4&&visible){
+          e.cast='fire';this.say('火術師が詠唱を始めた！ 次のターンに炎。');
+
         }else this._enemyStep(e);
       }
       this.updateVision();
@@ -373,10 +427,10 @@
       const t=this.tile(x,y);
       if(!t.seen)return {name:'未探索',desc:'そこには何があるだろう。'};
       const e=t.lit?this.enemyAt(x,y):null,i=t.lit?this.itemAt(x,y):null,trap=this.trapAt(x,y);
-      if(e){const d=MONSTERS[e.type];return {name:d.name,desc:'HP '+e.hp+'/'+e.maxHp+' · 攻撃'+d.atk+(e.windup?' · 次のターンに強攻撃！':'')};}
+      if(e){const d=MONSTERS[e.type];return {name:d.name,desc:'HP '+e.hp+'/'+e.maxHp+' · 攻撃'+d.atk+(e.windup?' · 次のターンに強攻撃！':e.cast==='arrow'?' · 次のターンに射撃！':e.cast==='fire'?' · 次のターンに火術！':'')};}
       if(i)return {name:ITEM[i.type].name,desc:ITEM[i.type].desc};
       if(x===this.stairs.x&&y===this.stairs.y)return {name:this.floor===MAX_FLOOR?'星の核':'下り階段',desc:'踏むと次の階層へ進む。'};
-      if(trap&&trap.known)return {name:'針の罠',desc:'踏むと5ダメージ。'};
+      if(trap&&trap.known)return {name:'針の罠',desc:'発見済み。踏むと5ダメージ。敵を押し込むと有利。'};
       if(t.fire>0)return {name:'炎',desc:'踏むと毎ターン3ダメージ。油や草に延焼する。'};
       const names={wall:'岩壁',floor:'石床',water:'水脈',oil:'油溜まり',bush:'茂み',ice:'氷床'};
       const desc={wall:'通れない。視界も遮る。',floor:'歩ける床。',water:'雷が伝わり、氷結の瓶で凍る。',oil:'火種で燃え広がる。',bush:'燃えやすく、移動を妨げる。',ice:'水脈を凍らせてできた床。'};

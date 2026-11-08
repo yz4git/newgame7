@@ -70,6 +70,7 @@ async function run(){
       await page.getByRole('button',{name:'絵と記号の図鑑'}).click();
       assert.equal(await page.getByRole('dialog').isVisible(),true);
       assert.equal(await page.locator('.atlas-item').count(),12);
+      await page.getByText('周囲2マスで発見',{exact:false}).waitFor();
       assert.ok(await page.getByText('水脈',{exact:true}).isVisible());
       await page.screenshot({path:'playcheck-output/'+name+'-atlas.png',fullPage:true});
       await page.getByRole('tab',{name:'敵'}).click();
@@ -91,6 +92,9 @@ async function run(){
       assert.equal(await page.locator('#sheet').isVisible(),true);
       await page.locator('#closeSheet').click();
       await page.getByRole('button',{name:/1ターン待つ/}).click();
+      await page.locator('#historyButton').click();
+      await page.getByRole('dialog').getByText('冒険の記録').waitFor();
+      await page.getByRole('button',{name:'冒険に戻る'}).click();
       const after=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.ok(after.turn>=1);
       const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:window.innerWidth,canvas:document.querySelector('#board').width}));

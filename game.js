@@ -9,7 +9,7 @@
   const recent=$('recent'),bag=$('bag'),tooltip=$('tooltip'),toastEl=$('toast'),sheet=$('sheet'),modal=$('modal'),hint=$('hint');
   let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
   let soundEnabled=false,audioContext=null;
-  let particles=[];
+  let particles=[],armedTrap=null,flashUntil=0;
   function load(){
     try{const raw=localStorage.getItem(STORE);if(raw){game=Game.restore(raw);return true;}}catch(e){console.warn('Save unavailable',e);}
     game=new Game();return false;
@@ -43,7 +43,12 @@
     atkText.textContent=s.attack;turnText.textContent=s.turn;scoreText.textContent=s.score;
     const last=game.log[0];recent.textContent=last?last.text:'影の底へ進もう。';
     bag.textContent=game.inventory.length+'/8';
-    hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':autoTarget?'自動移動中 · 画面をタップして停止':'タップで進む · スワイプで1歩 · 長押しで調べる';
+    const warning=game.enemies.find(e=>game.tile(e.x,e.y)?.lit&&(e.cast||e.windup));
+    hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
+      warning?(warning.windup?'⚠ 重装獣の強攻撃を回避！':
+        warning.cast==='arrow'?'⚠ 射手が狙っている！壁・煙の陰へ':'⚠ 火術の詠唱中！退避しよう'):
+      autoTarget?'自動移動中 · 敵・罠を見つけると停止':
+      'タップで進む · スワイプで1歩 · 長押しで調べる';
     $('cancelAim').hidden=aim<0;
     $('cancelAim').classList.toggle('active',aim>=0);
     $('soundButton').textContent=soundEnabled?'♪':'♫̸';
@@ -53,7 +58,7 @@
     save();
   }
   function startNew(){
-    stopAuto();aim=-1;selection=null;
+    stopAuto();aim=-1;selection=null;armedTrap=null;
     game=new Game();clearSave();save();hideSheet();hideModal();refresh();showToast('新たな探索が始まった');
   }
   function hideModal(){modal.hidden=true;modalMode='';}
@@ -105,7 +110,7 @@
     {name:'茂み',desc:'緑の草。油と同じく炎が燃え移る。',tile:'bush'},
     {name:'炎',desc:'赤い炎。立っていると毎ターン3ダメージ。',tile:'floor',fire:3},
     {name:'煙',desc:'煙玉で発生。敵の射線を遮る。',tile:'floor',smoke:4},
-    {name:'針の罠',desc:'三角の印。踏むと5ダメージ。敵も罠を踏む。',tile:'floor',feature:'trap'}
+    {name:'針の罠',desc:'周囲2マスで発見。自動移動は避け、手動操作では2回確認。敵を押し込める。',tile:'floor',feature:'trap'}
   ];
   function legendEntries(section){
     if(section==='enemies')return Object.entries(MONSTERS).map(([type,d])=>({
@@ -188,22 +193,36 @@
   }
   function stopAuto(){if(autoTimer){clearTimeout(autoTimer);autoTimer=0;}autoTarget=null;selection=null;}
   function afterAction(oldTurn){
+    if(game.turn!==oldTurn && /ダメージ|倒した|命中|攻撃/.test(game.log[0]?.text||''))flashUntil=performance.now()+180;
     if(game.turn!==oldTurn){sound(game.log[0]?.text.includes('ダメージ')?190:410,.055);}
     if(!game.alive||game.won)stopAuto();
     refresh();
   }
   function step(dx,dy){
     stopAuto();aim=-1;
+    const x=game.player.x+dx,y=game.player.y+dy;
+    const trap=game.trapAt(x,y);
+    if(trap?.known){
+      if(!armedTrap||armedTrap.x!==x||armedTrap.y!==y){
+        armedTrap={x,y};showTile(x,y);
+        showToast('針の罠！ もう一度同じ方向で踏む／回り道を選択');
+        refresh();return;
+      }
+    }
+    armedTrap=null;
     const old=game.turn,r=game.move(dx,dy);
-    if(!r.ok&&r.reason==='wall'){sound(120,.055);showToast('そこには進めない');}
-    else if(r.ok)afterAction(old);
+    if(!r.ok&&r.reason==='wall'){
+      sound(120,.055);
+      const corner=dx&&dy&&game.walkable(x,y)&&game.blockedDiagonal(game.player.x,game.player.y,x,y);
+      showToast(corner?'壁の角で斜めに進めない。迂回しよう':'そこには進めない');
+    }else if(r.ok)afterAction(old);
     refresh();
   }
   function beginPath(x,y,enemyTarget){
-    stopAuto();
+    stopAuto();armedTrap=null;
     if(x===game.player.x&&y===game.player.y){return;}
     const path=game.pathTo(x,y,!!enemyTarget);
-    if(!path.length){showToast('そこへ続く道がない');return;}
+    if(!path.length){showToast(enemyTarget?'攻撃できる位置への道がない':'そこへ続く道がない');return;}
     autoTarget={x,y,enemyId:enemyTarget?enemyTarget.id:null,path};
     selection={x,y};
     // Safe traversal stops when an enemy becomes a visible immediate threat.
@@ -212,6 +231,9 @@
       const target=autoTarget,next=target.path.shift();
       if(!next){finishAuto();return;}
       if(game.enemyAt(next.x,next.y)){stopAuto();showToast('敵が道を塞いでいる');refresh();return;}
+      if(game.trapAt(next.x,next.y)?.known||game.tile(next.x,next.y)?.fire>0){
+        stopAuto();showToast('危険な床を発見。自動移動を停止した');refresh();return;
+      }
       const old=game.turn,dx=next.x-game.player.x,dy=next.y-game.player.y;
       const wasDanger=game.canSeeDanger();
       const r=game.move(dx,dy);
@@ -224,14 +246,9 @@
     };
     const finishAuto=()=>{
       if(!autoTarget)return;
-      const id=autoTarget.enemyId;
-      stopAuto();
-      if(id){
-        const e=game.enemies.find(m=>m.id===id);
-        if(e&&Math.max(Math.abs(e.x-game.player.x),Math.abs(e.y-game.player.y))===1){
-          const old=game.turn;game.move(e.x-game.player.x,e.y-game.player.y);afterAction(old);
-        }
-      }
+      const id=autoTarget.enemyId;stopAuto();
+      if(id&&game.enemies.some(e=>e.id===id))
+        showToast('敵の前で停止。タップで攻撃（危険なら距離を取ろう）');
       refresh();
     };
     autoTimer=setTimeout(advancePath,75);refresh();
@@ -251,7 +268,13 @@
     const t=game.tile(x,y);if(!t||!t.seen){showToast('まだ見えない場所');return;}
     const enemy=t.lit?game.enemyAt(x,y):null;
     const dx=x-game.player.x,dy=y-game.player.y;
-    if(enemy&&Math.max(Math.abs(dx),Math.abs(dy))===1){step(dx,dy);return;}
+    if(enemy&&Math.max(Math.abs(dx),Math.abs(dy))===1){
+      if(game.blockedDiagonal(game.player.x,game.player.y,x,y)){
+        showToast('角越しには攻撃できない。回り込み経路を確認');
+        beginPath(x,y,enemy);return;
+      }
+      step(dx,dy);return;
+    }
     if(Math.max(Math.abs(dx),Math.abs(dy))===1){step(dx,dy);return;}
     if(dx===0&&dy===0){showTile(x,y);return;}
     beginPath(x,y,enemy);
@@ -317,6 +340,14 @@
   });
   $('bagButton').onclick=openBag;
   $('legendButton').onclick=()=>showLegend('terrain');
+  $('historyButton').addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();$('historyButton').click();}
+  });
+  $('historyButton').addEventListener('click',()=>{
+    const messages=game.log.map(e=>'<div class="log-entry"><span>TURN '+e.turn+'</span> '+e.text+'</div>').join('');
+    showModal('冒険の記録',messages||'<p>まだ記録がありません。</p>',
+      [{label:'冒険に戻る',primary:true,click:()=>{hideModal();refresh();}}]);
+  });
   $('waitButton').onclick=()=>{stopAuto();const old=game.turn;game.wait();afterAction(old);};
   $('helpButton').onclick=showHelp;
   $('soundButton').onclick=()=>{soundEnabled=!soundEnabled;sound(500);refresh();};
@@ -411,7 +442,14 @@
       }
     }
     const trap=override?(override.feature==='trap'?{known:true}:null):game.trapAt(x,y);
-    if(trap&&trap.known){c.strokeStyle='#f1b677';c.lineWidth=2;c.beginPath();c.moveTo(px+s*.25,py+s*.7);c.lineTo(px+s*.5,py+s*.3);c.lineTo(px+s*.75,py+s*.7);c.stroke();}
+    if(trap&&trap.known){
+      c.fillStyle='rgba(249,174,84,.18)';c.fillRect(px+1,py+1,s-2,s-2);
+      c.strokeStyle='#ffbc65';c.lineWidth=2.3;c.beginPath();
+      c.moveTo(px+s*.23,py+s*.72);c.lineTo(px+s*.5,py+s*.24);
+      c.lineTo(px+s*.77,py+s*.72);c.closePath();c.stroke();
+      c.fillStyle='#ffe0a0';c.fillRect(px+s*.48,py+s*.43,s*.05,s*.16);
+      c.fillRect(px+s*.48,py+s*.64,s*.05,s*.05);
+    }
     if(override?.feature==='stairs'||(!override&&x===game.stairs.x&&y===game.stairs.y)){
       c.shadowColor='#f0c674';c.shadowBlur=13;c.strokeStyle='#efc67d';c.lineWidth=2;
       c.strokeRect(px+s*.25,py+s*.24,s*.5,s*.52);
@@ -425,7 +463,12 @@
       }
       const e=override?(override.enemy?{type:override.enemy,hp:MONSTERS[override.enemy].hp,maxHp:MONSTERS[override.enemy].hp,windup:false}:null):game.enemyAt(x,y);if(e){
         sprite(col,row,e.type,c,cell);
-        if(e.windup){c.fillStyle='#fbb57b';c.font='bold '+Math.round(s*.38)+'px sans-serif';c.fillText('!',px+s*.8,py+s*.26);}
+        if(e.windup||e.cast){
+          const glyph=e.cast==='arrow'?'➶':e.cast==='fire'?'✹':'!';
+          c.fillStyle='#ffe6a8';c.font='bold '+Math.round(s*.43)+'px sans-serif';
+          c.fillText(glyph,px+s*.75,py+s*.23);
+          c.strokeStyle='#f5bc69';c.lineWidth=2;c.strokeRect(px+2,py+2,s-4,s-4);
+        }
         const f=Math.max(0,e.hp/e.maxHp);
         c.fillStyle='#172a2c';c.fillRect(px+s*.16,py+s*.85,s*.68,3);
         c.fillStyle=f>.4?'#f8a176':'#eb565b';c.fillRect(px+s*.16,py+s*.85,s*.68*f,3);
@@ -457,6 +500,9 @@
       ctx.fillStyle='rgba(211,165,83,.12)';ctx.fillRect(0,0,cw,ch);
       const stroke='#ffdc99';ctx.strokeStyle=stroke;ctx.lineWidth=2;
       ctx.strokeRect(px+2,py+2,s-4,s-4);
+    }
+    if(time<flashUntil){
+      ctx.strokeStyle='rgba(255,158,98,.75)';ctx.lineWidth=5;ctx.strokeRect(2,2,cw-4,ch-4);
     }
     const vignette=ctx.createRadialGradient(cw/2,ch/2,cw*.14,cw/2,ch/2,ch*.69);
     vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(1,'rgba(1,7,12,.38)');
