@@ -25,6 +25,35 @@ async function run(){
       assert.match(await page.title(),/DEEP WEAVE/);
       await page.getByRole('button',{name:'探索を始める'}).click();
       await page.locator('#board').waitFor();
+      // Verify that the three primary actions never fall under browser chrome.
+      const assertDockVisible = async (caption) => {
+        const measurements=await page.evaluate(()=>{
+          const vv=window.visualViewport;
+          const visibleBottom=vv ? vv.offsetTop+vv.height : window.innerHeight;
+          const dock=document.querySelector('#app > .actions');
+          const buttons=[...dock.querySelectorAll('.action')];
+          const r=dock.getBoundingClientRect();
+          return {
+            position:getComputedStyle(dock).position,
+            visualBottom:visibleBottom,
+            dockBottom:r.bottom,
+            dockTop:r.top,
+            touchable:buttons.map(btn=>{
+              const rect=btn.getBoundingClientRect();
+              const pointX=rect.left+rect.width/2,pointY=rect.top+rect.height/2;
+              const top=document.elementFromPoint(pointX,pointY);
+              return {height:rect.height,bottom:rect.bottom,
+                hit:top===btn||btn.contains(top)};
+            })
+          };
+        });
+        assert.equal(measurements.position,'fixed',caption+' dock is not fixed');
+        assert.ok(measurements.dockBottom<=measurements.visualBottom+2,
+          caption+' dock below visible viewport: '+JSON.stringify(measurements));
+        assert.ok(measurements.touchable.every(b=>b.hit&&b.height>=44&&b.bottom<=measurements.visualBottom+1),
+          caption+' bottom buttons not accessible: '+JSON.stringify(measurements));
+      };
+      await assertDockVisible('iPhone portrait');
       const before=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.equal(before.turn,0);
       const box=await page.locator('#board').boundingBox();assert.ok(box&&box.width>200);
@@ -71,6 +100,7 @@ async function run(){
       // A short viewport must not shrink the game horizontally.
       await page.setViewportSize({width:390,height:700});
       await page.waitForTimeout(100);
+      await assertDockVisible('short Safari viewport');
       const short=await page.evaluate(()=>{
         const v=window.innerWidth,r=document.querySelector('#board').getBoundingClientRect();
         return {viewport:v,board:r.width,left:r.left,right:v-r.right,doc:document.documentElement.scrollWidth};
@@ -79,6 +109,13 @@ async function run(){
       assert.ok(short.left<=6&&short.right<=6,'short viewport side margins: '+JSON.stringify(short));
       assert.ok(short.doc<=short.viewport+1,'short viewport horizontal scroll: '+JSON.stringify(short));
       await page.screenshot({path:'playcheck-output/'+name+'-compact.png',fullPage:true});
+      // The dock must remain operable even after scrolling the dungeon.
+      await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+      await page.waitForTimeout(80);
+      await assertDockVisible('scrolled page');
+      await page.evaluate(()=>window.scrollTo(0,0));
+      await page.waitForTimeout(80);
+      await assertDockVisible('scrolled back');
       assert.equal(versionRequests.length,1,'version polling happened during play');
       // Simulate the release endpoint advancing while the app is open.
       // The game must NEVER reload or interrupt the existing run.

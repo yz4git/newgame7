@@ -124,3 +124,60 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   .action {min-height: 46px;}
   .copyright {display:none;}
 }
+
+
+/* v0.5: iPhone Safari/PWA bottom-bar avoidance.
+   Actions stay inside the visible viewport even when the full-width
+   9x11 map is taller than the available height. The map is NOT narrowed. */
+:root {
+  --dw-bottom-safe: max(22px, env(safe-area-inset-bottom, 0px));
+  --dw-dock-height: calc(53px + 16px + var(--dw-bottom-safe));
+}
+#app {
+  /* Scroll room prevents fixed controls from covering the final log/map row. */
+  padding-bottom: calc(var(--dw-dock-height) + 22px) !important;
+}
+#app > .actions {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100%, 520px);
+  margin: 0 auto !important;
+  padding: 8px max(8px, env(safe-area-inset-right, 0px)) calc(8px + var(--dw-bottom-safe)) max(8px, env(safe-area-inset-left, 0px));
+  border-top: 1px solid #456570;
+  background: linear-gradient(180deg, rgba(14,35,46,.94), #081923 85%);
+  box-shadow: 0 -12px 25px rgba(3,11,18,.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transform: none;
+}
+#app > .actions .action {
+  min-height: 53px;
+  touch-action: manipulation;
+}
+#app > .actions .action:focus-visible { outline-offset: -2px; }
+#app > .copyright {display:none;}
+#cancelAim {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--dw-dock-height) + 12px);
+  z-index: 51;
+}
+@media (max-width:600px) and (orientation:portrait) {
+  #app > .actions {
+    width:100%;
+    max-width:none;
+    gap:8px;
+  }
+  #app > .actions .action {min-height: 53px;}
+}
+/* When the viewport is short, the page scrolls vertically while the
+   bottom dock remains visible and the board stays edge-to-edge. */
+@media (max-height:740px) {
+  #app > .actions .action {min-height: 50px;}
+}
+@media (display-mode:standalone) {
+  :root { --dw-bottom-safe: max(24px, env(safe-area-inset-bottom, 0px)); }
+}
