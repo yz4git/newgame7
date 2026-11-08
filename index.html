@@ -32,14 +32,14 @@
 </section>
 <section class="map-wrap" aria-label="ダンジョン">
   <div class="map-corners"><span id="viewFloor">B1</span><span>✦ THE DESCENT ✦</span></div>
-  <div class="map-frame"><canvas id="board" width="330" height="390" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas></div>
+  <div class="map-frame"><canvas id="board" width="360" height="440" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas></div>
   <div class="map-corners"><span>THE UNKNOWN AWAITS</span><span id="viewTurn">TURN 0</span></div>
 </section>
 <section class="feedback"><div class="log" id="recent" aria-live="polite">影の底へ進もう。</div><div class="hint" id="hint">タップで進む · スワイプで1歩 · 長押しで調べる</div></section>
 <section class="actions" aria-label="行動">
   <button type="button" id="bagButton" class="action primary"><strong>✧</strong><span>道具を使う</span><small id="bag">3/8</small></button>
   <button type="button" id="waitButton" class="action"><strong>◷</strong><span>1ターン待つ</span></button>
-  <button type="button" class="action" onclick="document.getElementById('helpButton').click()"><strong>?</strong><span>遊び方</span></button>
+  <button type="button" id="legendButton" class="action" aria-label="絵と記号の図鑑"><strong>▦</strong><span>絵の図鑑</span></button>
 </section>
 <button type="button" id="cancelAim" hidden>✕ 対象選択を解除</button>
 <p class="copyright">NO PAD. NO STICK. ONE FINGER, INFINITE CHOICES.</p>

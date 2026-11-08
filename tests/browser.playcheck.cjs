@@ -16,6 +16,28 @@ async function run(){
       const before=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.equal(before.turn,0);
       const box=await page.locator('#board').boundingBox();assert.ok(box&&box.width>200);
+      const mapView=await page.evaluate(()=>window.__deepWeaveTest.getViewport());
+      assert.equal(mapView.columns,9);assert.equal(mapView.rows,11);
+      assert.ok(mapView.tileCssPixels>=35,'touch cell too small: '+JSON.stringify(mapView));
+      // Legend cards must show exactly the symbols seen on the live board.
+      await page.getByRole('button',{name:'絵と記号の図鑑'}).click();
+      assert.equal(await page.getByRole('dialog').isVisible(),true);
+      assert.equal(await page.locator('.atlas-item').count(),12);
+      assert.ok(await page.getByText('水脈',{exact:true}).isVisible());
+      await page.screenshot({path:'playcheck-output/'+name+'-atlas.png',fullPage:true});
+      await page.getByRole('tab',{name:'敵'}).click();
+      assert.equal(await page.locator('.atlas-item').count(),7);
+      await page.getByRole('tab',{name:'道具'}).click();
+      assert.equal(await page.locator('.atlas-item').count(),8);
+      const atlasPaint=await page.locator('.atlas-art').first().evaluate(c=>{
+        const data=c.getContext('2d').getImageData(32,32,1,1).data;
+        return Array.from(data).slice(0,3).reduce((n,x)=>n+x,0);
+      });
+      assert.ok(atlasPaint>0,'atlas icon has no drawing');
+      await page.getByRole('button',{name:'ゲームに戻る'}).click();
+      assert.equal(await page.getByRole('dialog').isVisible(),false);
+      const notConsumed=await page.evaluate(()=>window.__deepWeaveTest.getState());
+      assert.equal(notConsumed.turn,0,'atlas consumed a turn');
       await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
       await page.mouse.down();await page.mouse.move(box.x+box.width/2+40,box.y+box.height/2,{steps:6});await page.mouse.up();
       await page.getByRole('button',{name:/道具を使う/}).click();

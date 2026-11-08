@@ -31,3 +31,42 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .end-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}.end-stats span{padding:9px;border-radius:8px;background:#122c37;color:#edd0a0;font-size:12px}
 @media (max-height:720px){#app{gap:7px}.hud{padding:8px}.action{min-height:54px}.feedback{min-height:43px}.map-frame,.map-corners{width:min(100%,43dvh,420px)}.brand strong{font-size:15px}.top{min-height:39px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* Full-width portrait board: 9 x 11 visible cells, one-tap targets ~40px
+   on 390px phones. A height budget keeps controls reachable on short devices. */
+#app{max-width:520px;padding:calc(env(safe-area-inset-top,0px) + 5px) 6px calc(env(safe-area-inset-bottom,0px) + 5px);gap:6px}
+.top{min-height:38px;gap:5px}
+.brand{gap:6px}.sigil{font-size:27px}.brand strong{font-size:15px;letter-spacing:.12em}.brand small{font-size:7px}
+.head-tools button{height:34px;width:34px}
+.hud{padding:7px 9px;gap:5px;border-radius:9px}
+.stat-strip{gap:5px}
+.hud-stats{font-size:9px}
+.map-wrap{gap:2px;flex:1 1 auto}
+.map-frame,.map-corners{width:min(100%,calc(81.818dvh - 245px),510px)}
+.map-frame{padding:3px;border-radius:7px;flex-shrink:0}
+#board{aspect-ratio:9/11;border-radius:3px}
+.map-corners{font-size:8px;min-height:10px}
+.feedback{min-height:37px;padding:5px 9px}
+.hint{margin-top:2px}
+.actions{gap:6px}
+.action{min-height:53px;gap:1px;border-radius:9px}
+.action strong{font-size:17px}
+.copyright{font-size:8px;line-height:1;margin:1px 0 0}
+#cancelAim{bottom:calc(env(safe-area-inset-bottom,0px) + 64px);right:9px}
+.atlas-intro{font-size:11px!important;line-height:1.6!important;margin:0 0 10px!important}
+.atlas-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;position:sticky;top:-1px;background:#1a303a;z-index:3;padding:4px 0 9px}
+.atlas-tab{border:1px solid #44606a;border-radius:8px;background:#102734;color:#adcad1;font-size:11px;font-weight:700;min-height:38px;padding:7px 3px}
+.atlas-tab.selected{background:#8f744e;border-color:#d8b782;color:#fff4d8}
+.atlas-list{display:flex;flex-direction:column;gap:7px;text-align:left}
+.atlas-item{display:flex;align-items:center;gap:12px;min-height:76px;border:1px solid #3b5b64;background:linear-gradient(105deg,#1a3441,#112833);border-radius:10px;padding:5px 8px}
+.atlas-art{width:66px;height:66px;flex:none;image-rendering:auto;border:1px solid #456572;border-radius:7px;background:#0c1d26}
+.atlas-copy{min-width:0;display:flex;flex-direction:column;gap:4px}
+.atlas-copy strong{font-size:13px;color:#ffe2ad}
+.atlas-copy span{font-size:11px;line-height:1.5;color:#c3d6d7}
+.atlas-foot{font-size:10px!important;line-height:1.6!important;color:#93afb5!important}
+@media(max-height:720px){
+ #app{gap:4px;padding-top:calc(env(safe-area-inset-top,0px) + 3px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 3px)}
+ .map-frame,.map-corners{width:min(100%,calc(81.818dvh - 250px),510px)}
+ .feedback{min-height:34px}.action{min-height:47px}.top{min-height:35px}.hud{padding:5px 9px}
+ .brand strong{font-size:14px}
+}
