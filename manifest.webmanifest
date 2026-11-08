@@ -1,16 +1,16 @@
 {
-  "name": "KAWAII MOTION — ファン獲得ダンスバトル",
-  "short_name": "KAWAII MOTION",
-  "description": "映像を選んでダンスをつなぐファン獲得バトル",
+  "name": "深界の織り手 — DEEP WEAVE",
+  "short_name": "DEEP WEAVE",
+  "description": "指一本で遊ぶ本格ターン制ローグライク",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#100b21",
-  "theme_color": "#100b21",
+  "background_color": "#07131b",
+  "theme_color": "#07131b",
   "icons": [
     {
-      "src": "assets/kawaii-icon.svg",
+      "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

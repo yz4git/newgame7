@@ -1,10 +1,10 @@
-name: Prototype checks
+name: Deep Weave gameplay checks
 on:
   push:
     branches: [main]
   pull_request:
 jobs:
-  validate:
+  engine:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -13,17 +13,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: KAWAII MOTION full gameplay
-        run: node tests/dance.test.cjs
-      - name: KAWAII MOTION original soundtrack and mute
-        run: node tests/rhythm-audio.test.cjs
-      - name: KAWAII MOTION ZIP clip pack
-        run: node tests/clip-pack.test.cjs
-      - name: Verify bundled preview MP4 files
-        run: node tests/bundled-media.test.cjs
-      - name: Legacy MOTION CHAIN graph integrity
-        run: node tests/graph.test.cjs
-      - name: Legacy MOTION CHAIN smoke test
+      - name: Validate engine
         run: node tests/engine.test.cjs
-      - name: Legacy storyboard coverage
-        run: node tests/storyboards.test.cjs
+      - name: Validate scripts and entry points
+        run: |
+          node --check engine.js
+          node --check game.js
+          test -s index.html && test -s style.css && test -s manifest.webmanifest

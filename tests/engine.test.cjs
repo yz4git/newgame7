@@ -1,115 +1,47 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-global.window = global;
-require("../graph.js");
-const graph = global.GF_GRAPH;
-let clock = 0, frame = null;
-const els = new Map();
-function mockElement(){
-  const listeners={},classes=new Set();
-  return {
-    listeners,children:[],style:{setProperty(){}},dataset:{},src:"",value:"",textContent:"",disabled:false,offsetWidth:0,
-    classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle:(x,yes)=>yes?classes.add(x):classes.delete(x),contains:x=>classes.has(x)},
-    addEventListener:(type,fn)=>{listeners[type]=fn},append(...a){this.children.push(...a)},
-    replaceChildren(...a){this.children=a},setAttribute(){},removeAttribute(k){if(k==="src")this.src=""},
-    pause(){},load(){},play(){return Promise.resolve()},press(){if(!this.disabled)listeners.click?.()}
-  };
+'use strict';
+const assert=require('node:assert/strict');
+const {Game,W,H,MAX_FLOOR}=require('../engine.js');
+function reachable(g){
+  const start=g.player,visited=new Set([start.x+','+start.y]),q=[start];
+  for(let i=0;i<q.length;i++){
+    const p=q[i];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+      const x=p.x+dx,y=p.y+dy,k=x+','+y;
+      if(!g.walkable(x,y)||g.blockedDiagonal(p.x,p.y,x,y)||visited.has(k))continue;
+      visited.add(k);q.push({x,y});
+    }
+  }
+  return visited.has(g.stairs.x+','+g.stairs.y);
 }
-const document={getElementById(id){if(!els.has(id))els.set(id,mockElement());return els.get(id)},createElement:mockElement,addEventListener(){},hidden:false};
-const el=id=>document.getElementById(id);
-const app=fs.readFileSync(path.join(__dirname,"../app.js"),"utf8");
-new Function("window","document","performance","requestAnimationFrame","fetch","localStorage",app)(
- global,document,{now:()=>clock},fn=>{frame=fn},
- ()=>Promise.resolve({ok:true,json:()=>Promise.resolve({})}),
- {getItem:()=>null,setItem(){}}
-);
-const advance=milliseconds=>{clock+=milliseconds;frame(clock)};
-function start(){el("startButton").press();assert.equal(el("shotTitle").textContent,graph.intro.title)}
-function branch(id,choiceIndex){
-  const node=graph[id];
-  assert.equal(el("shotTitle").textContent,node.title,"at node "+id);
-  const chooseAt=Math.floor(node.duration*.73);
-  advance(chooseAt);
-  const oldTitle=el("shotTitle").textContent;
-  el("choices").children[choiceIndex].press();
-  assert.equal(el("shotTitle").textContent,oldTitle,"stays until cinematic cut at "+id);
-  assert.equal(el("windowLabel").textContent,"LOCKED","choice buffered in "+id);
-  advance(Math.ceil(node.duration*(node.cutAt-.73))+15);
-  assert.equal(el("shotTitle").textContent,graph[node.choices[choiceIndex].next].title,"destination of "+id);
+for(let seed=1;seed<=100;seed++){
+  const g=new Game(seed);
+  assert.equal(g.map.length,H);assert.equal(g.map[0].length,W);
+  assert.ok(g.rooms.length>=2);assert.ok(reachable(g),'unreachable map '+seed);
+  assert.equal(g.turn,0);assert.equal(g.floor,1);assert.equal(g.alive,true);
+  const restored=Game.restore(g.serialize());
+  assert.equal(restored.seed,g.seed);assert.equal(restored.player.x,g.player.x);
 }
-assert.ok(el("titleOverlay").classList.contains("visible"));
-el("clipNode").value="finish";
-el("clipNode").listeners.change();
-assert.ok(el("clipEntry").children.some(opt=>opt.value==="counter:finisher"),"finish has incoming counter variant");
-assert.ok(el("clipEntry").children.some(opt=>opt.value==="throw:finisher"),"finish has incoming throw variant");
-const oldCreateURL=URL.createObjectURL;
-URL.createObjectURL=()=>"blob:counter-finish";
-el("clipEntry").value="counter:finisher";
-el("clipFile").files=[{name:"finish_counter.mp4",type:"video/mp4",size:16384}];
-el("clipFile").listeners.change();
-assert.ok(el("assetState").textContent.includes("finish_counter.mp4"),"variant file assigned");
-start();
-advance(900);
-el("choices").children[1].press();
-assert.equal(el("shotTitle").textContent,graph.intro.title,"early tap ignored");
-assert.equal(el("hpDisplay").textContent,100,"early tap harmless");
-advance(Math.floor(graph.intro.duration*.73)-900);
-el("choices").children[1].press();
-assert.equal(el("windowLabel").textContent,"LOCKED");
-advance(Math.ceil(graph.intro.duration*(graph.intro.cutAt-.73))+15);
-assert.equal(el("shotTitle").textContent,graph.evade.title);
-el("retakeButton").press();
-assert.equal(el("shotTitle").textContent,graph.intro.title,"retake returns to original node");
-assert.equal(Number(el("scoreDisplay").textContent),0);
-assert.equal(el("retakeCounter").textContent,"01");
-branch("intro",1);branch("evade",0);branch("counter",0);
-assert.equal(el("clipVideo").src,"blob:counter-finish","source-specific finish footage selected");
-advance(graph.finish.duration+25);
-assert.equal(el("resultTitle").textContent,"THAT'S A WRAP.");
-assert.equal(el("finalCuts").textContent,"03");
-el("replayButton").press();
-advance(Math.ceil(graph.intro.duration*graph.intro.cutAt)+20);
-assert.equal(el("shotTitle").textContent,graph.evade.title,"replay intro stitch marker");
-advance(Math.ceil(graph.evade.duration*graph.evade.cutAt)+20);
-assert.equal(el("shotTitle").textContent,graph.counter.title,"replay evade stitch marker");
-advance(Math.ceil(graph.counter.duration*graph.counter.cutAt)+20);
-assert.equal(el("shotTitle").textContent,graph.finish.title,"replay counter stitch marker");
-advance(graph.finish.duration+20);
-assert.ok(el("resultOverlay").classList.contains("visible"),"replay completes");
-el("resultRetakeButton").press();
-assert.equal(el("shotTitle").textContent,graph.counter.title,"retake from result");
-assert.equal(el("retakeCounter").textContent,"00");
-advance(100);
-el("choices").children[0].press();
-assert.equal(el("shotTitle").textContent,graph.counter.title,"early input at later shots no longer causes miss");
-
-start();
-branch("intro",0);branch("rush",0);branch("elbow",1);branch("throw",1);
-advance(graph.breakaway.duration+20);
-assert.equal(el("resultTitle").textContent,"SAFE CUT.","alternate route ending");
-
-start();
-branch("intro",2);branch("feint",1);branch("sweep",0);
-advance(graph.finish.duration+20);
-assert.equal(el("resultTitle").textContent,"THAT'S A WRAP.","feint route victory");
-
-start();
-advance(graph.intro.duration+20);
-assert.equal(el("shotTitle").textContent,graph.stumble.title,"timeout enters stumble");
-advance(graph.stumble.duration+20);
-assert.equal(el("shotTitle").textContent,graph.knockout.title,"stumble timeout enters knockout");
-advance(graph.knockout.duration+20);
-assert.equal(el("resultTitle").textContent,"CUT TO BLACK.","defeat ending");
-
-start();
-advance(2400);
-el("pauseButton").press();
-assert.ok(el("pauseOverlay").classList.contains("visible"));
-advance(4500);
-el("resumeButton").press();
-assert.equal(el("shotTitle").textContent,graph.intro.title);
-advance(150);
-assert.equal(el("shotTitle").textContent,graph.intro.title,"time remains paused");
-URL.createObjectURL=oldCreateURL;
-console.log("MOTION CHAIN engine PASS: full MOTION BRANCH rollout, 3 endings, replay, retake, early input and pause.");
+const g=new Game(4837);g.enemies=[];g.items=[];g.traps=[];
+const move=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]].find(([dx,dy])=>g.walkable(g.player.x+dx,g.player.y+dy)&&!g.blockedDiagonal(g.player.x,g.player.y,g.player.x+dx,g.player.y+dy));
+assert.ok(move);
+const x=g.player.x+move[0],y=g.player.y+move[1];
+g.traps=[{id:8000,x,y,used:false,known:false}];
+const old=g.hp,turn=g.turn;
+assert.equal(g.move(...move).ok,true);
+assert.equal(g.hp,old-5);assert.equal(g.turn,turn+1);assert.equal(g.traps[0].used,true);
+const snap=g.turn;
+g.inspect(x,y);g.pathTo(g.stairs.x,g.stairs.y);
+assert.equal(g.turn,snap);
+assert.equal(g.useItem(1,999,999).ok,false);assert.equal(g.turn,snap);
+const h=new Game(995);h.enemies=[];h.items=[];h.traps=[];
+const p=h.player,points=[[p.x+1,p.y],[p.x+2,p.y]];
+for(const [xx,yy] of points){h.tile(xx,yy).t='water';}
+h.enemies.push({id:900,type:'guard',x:points[0][0],y:points[0][1],hp:40,maxHp:40,stun:0,windup:false,alert:false});
+h.enemies.push({id:901,type:'guard',x:points[1][0],y:points[1][1],hp:40,maxHp:40,stun:0,windup:false,alert:false});
+assert.equal(h.useItem(1,points[0][0],points[0][1]).ok,true);
+assert.ok(h.enemies.every(e=>e.hp<=32),'water shock must hit connected enemies');
+assert.equal(h.inventory.length,2);
+const w=new Game(108);
+for(let floor=1;floor<MAX_FLOOR;floor++){w.descend();assert.equal(w.floor,floor+1);}
+assert.equal(w.won,false);w.descend();assert.equal(w.won,true);
+console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');

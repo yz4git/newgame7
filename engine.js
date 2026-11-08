@@ -1,0 +1,388 @@
+(function (root, factory) {
+  'use strict';
+  const api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.DeepWeave = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+  const W = 27, H = 29, MAX_FLOOR = 12;
+  const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+  const MONSTERS = {
+    sprout:{name:'苔小鬼', hp:7,atk:2,glyph:'s',color:'#8bc778',xp:1},
+    runner:{name:'穴走り',hp:6,atk:2,glyph:'r',color:'#e9ba78',xp:1},
+    archer:{name:'射手',hp:9,atk:3,glyph:'a',color:'#d6a3e0',xp:2},
+    guard:{name:'石の衛兵',hp:16,atk:3,glyph:'G',color:'#c0d4d7',xp:3},
+    eel:{name:'水精',hp:10,atk:3,glyph:'e',color:'#73d9ed',xp:2},
+    witch:{name:'火術師',hp:10,atk:3,glyph:'w',color:'#f1a06d',xp:2},
+    brute:{name:'重装獣',hp:19,atk:5,glyph:'B',color:'#ef8b78',xp:3}
+  };
+  const ITEM = {
+    heal:{name:'治癒の薬',glyph:'✚',color:'#7ce0ab',desc:'HPを12回復。自分をタップして使用。'},
+    spark:{name:'雷の杖',glyph:'ϟ',color:'#ffd86b',desc:'射程6。水中では電流が伝播し、複数の敵を感電させる。'},
+    frost:{name:'氷結の瓶',glyph:'❄',color:'#b9efff',desc:'対象周辺の水を凍らせ、敵を足止めする。'},
+    ember:{name:'火種の壺',glyph:'✹',color:'#ff9d68',desc:'油・草を燃やし、炎を広げる。'},
+    gust:{name:'突風の巻物',glyph:'➤',color:'#d8f1c9',desc:'敵を吹き飛ばし、罠・壁・火へ誘導する。'},
+    smoke:{name:'煙玉',glyph:'◌',color:'#d0c7dd',desc:'煙で射線を遮り、追手を撒く。'},
+    blade:{name:'研ぎ石',glyph:'◆',color:'#ffc777',desc:'自動使用。以降の近接攻撃力+1。'},
+    ward:{name:'生命の印',glyph:'✧',color:'#c4b8ff',desc:'自動使用。最大HP+4、HP+4。'}
+  };
+  const THEMES = [
+    {name:'忘却の石廊',wall:'#3d4651',floor:'#343c42',accent:'#d8b880'},
+    {name:'地下の水脈',wall:'#2d4a52',floor:'#2e4048',accent:'#75c8d7'},
+    {name:'熾火の祭壇',wall:'#57403b',floor:'#433933',accent:'#eaa074'},
+    {name:'根の深層',wall:'#3c5141',floor:'#33463a',accent:'#a5cb83'}
+  ];
+  function dist(a,b){return Math.max(Math.abs(a.x-b.x),Math.abs(a.y-b.y));}
+  function key(x,y){return x+','+y;}
+  function clone(o){return JSON.parse(JSON.stringify(o));}
+  function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
+  class Game {
+    constructor(seed) {
+      this.seed = (Number(seed) || (Date.now() & 0x7fffffff)) >>> 0;
+      this.rngState = this.seed || 10351;
+      this.floor = 1; this.turn = 0; this.hp = 30; this.maxHp = 30; this.attack = 5;
+      this.rank = 0; this.kills = 0; this.score = 0; this.alive = true; this.won = false;
+      this.inventory = [{type:'heal'},{type:'spark'},{type:'frost'}];
+      this.log = []; this.nextId = 1;
+      this.generate(); this.say('下へ降り、最深部の「星の核」を探そう。');
+    }
+    static restore(raw) {
+      const s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!s || s.version !== 2 || !s.map || !s.player) throw new Error('Invalid save');
+      const g=Object.create(Game.prototype); Object.assign(g,s);
+      g.log=Array.isArray(g.log)?g.log:[]; return g;
+    }
+    serialize(){return JSON.stringify(Object.assign({version:2},this));}
+    rnd(){let n=this.rngState|0; n^=n<<13;n^=n>>>17;n^=n<<5;this.rngState=n>>>0;return (this.rngState>>>0)/4294967296;}
+    int(a,b){return a+Math.floor(this.rnd()*(b-a+1));}
+    pick(a){return a[this.int(0,a.length-1)];}
+    say(message){this.log.unshift({turn:this.turn,text:message});this.log.length=Math.min(this.log.length,12);}
+    inside(x,y){return x>=0&&x<W&&y>=0&&y<H;}
+    tile(x,y){return this.inside(x,y)?this.map[y][x]:null;}
+    walkable(x,y){const t=this.tile(x,y);return !!t&&t.t!=='wall';}
+    enemyAt(x,y){return this.enemies.find(e=>e.hp>0&&e.x===x&&e.y===y);}
+    itemAt(x,y){return this.items.find(i=>i.x===x&&i.y===y);}
+    trapAt(x,y){return this.traps.find(t=>t.x===x&&t.y===y&&!t.used);}
+    blockedDiagonal(x,y,nx,ny){
+      return nx!==x&&ny!==y&&(!this.walkable(nx,y)||!this.walkable(x,ny));
+    }
+    generate() {
+      this.map=Array.from({length:H},()=>Array.from({length:W},()=>({t:'wall',seen:false,lit:false,fire:0,smoke:0})));
+      this.enemies=[];this.items=[];this.traps=[];this.rooms=[];
+      const carve=(x,y)=>{if(this.inside(x,y)&&x>0&&y>0&&x<W-1&&y<H-1)this.map[y][x].t='floor';};
+      for(let i=0;i<95&&this.rooms.length<15;i++){
+        const rw=this.int(4,8),rh=this.int(4,7),rx=this.int(1,W-rw-2),ry=this.int(1,H-rh-2);
+        if(this.rooms.some(r=>rx<=r.x+r.w&&rx+rw>=r.x-1&&ry<=r.y+r.h&&ry+rh>=r.y-1))continue;
+        const room={x:rx,y:ry,w:rw,h:rh,cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)};
+        for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)carve(x,y);
+        if(this.rooms.length){const prev=this.rooms[this.rooms.length-1];let x=prev.cx,y=prev.cy;
+          if(this.rnd()<0.5){while(x!==room.cx){x+=Math.sign(room.cx-x);carve(x,y);}while(y!==room.cy){y+=Math.sign(room.cy-y);carve(x,y);}}
+          else {while(y!==room.cy){y+=Math.sign(room.cy-y);carve(x,y);}while(x!==room.cx){x+=Math.sign(room.cx-x);carve(x,y);}}
+        }
+        this.rooms.push(room);
+      }
+      if(this.rooms.length<4){ // A guaranteed connected fallback for pathological seeds
+        for(let y=3;y<H-3;y++)for(let x=3;x<W-3;x++)carve(x,y);
+        this.rooms=[{cx:4,cy:4},{cx:W-5,cy:H-5}];
+      }
+      const first=this.rooms[0],last=this.rooms[this.rooms.length-1];
+      this.player={x:first.cx,y:first.cy};
+      this.stairs={x:last.cx,y:last.cy};
+      // Floor-dependent interacting materials, always built on existing floors.
+      const theme=this.themeIndex();
+      const clusters=5+this.floor*2;
+      for(let i=0;i<clusters;i++){
+        const pool=this.freeSpot(4);if(!pool)continue;
+        const material=(theme===1?this.pick(['water','water','oil','bush']):theme===2?this.pick(['oil','oil','bush','water']):theme===3?this.pick(['bush','bush','water','oil']):this.pick(['water','oil','bush']));
+        for(let j=0;j<this.int(2,6);j++){
+          const x=pool.x+this.int(-2,2),y=pool.y+this.int(-2,2);
+          if(this.walkable(x,y)&&this.distanceToSafe(x,y)>2)this.tile(x,y).t=material;
+        }
+      }
+      // Keep the starting chamber safe and the staircase accessible.
+      for(let y=this.player.y-1;y<=this.player.y+1;y++)for(let x=this.player.x-1;x<=this.player.x+1;x++)
+        if(this.walkable(x,y))this.tile(x,y).t='floor';
+      this.tile(this.stairs.x,this.stairs.y).t='floor';
+      for(let i=0;i<6+Math.floor(this.floor/2);i++){
+        const p=this.freeSpot(5);if(p)this.traps.push({id:this.nextId++,x:p.x,y:p.y,used:false,known:false});
+      }
+      const spawnCount=clamp(6+this.floor*2,8,23);
+      for(let i=0;i<spawnCount;i++){
+        const p=this.freeSpot(5);if(!p)continue;
+        let pool=['sprout','sprout','runner'];
+        if(this.floor>=2)pool.push('archer','eel');
+        if(this.floor>=4)pool.push('guard','witch');
+        if(this.floor>=7)pool.push('brute','archer','witch');
+        const type=this.pick(pool),def=MONSTERS[type];
+        if(this.enemyAt(p.x,p.y))continue;
+        this.enemies.push({id:this.nextId++,type,x:p.x,y:p.y,hp:def.hp,maxHp:def.hp,stun:0,windup:false,alert:false});
+      }
+      const itemCount=9+Math.floor(this.floor/3);
+      for(let i=0;i<itemCount;i++){
+        const p=this.freeSpot(3);if(!p||this.itemAt(p.x,p.y))continue;
+        let types=['heal','spark','frost','ember','gust','smoke','heal','spark'];
+        if(this.floor%3===0)types.push('blade','ward');
+        this.items.push({id:this.nextId++,x:p.x,y:p.y,type:this.pick(types)});
+      }
+      this.updateVision();
+    }
+    distanceToSafe(x,y){return Math.min(dist({x,y},this.player),dist({x,y},this.stairs));}
+    freeSpot(minDistance){
+      for(let i=0;i<120;i++){
+        const x=this.int(2,W-3),y=this.int(2,H-3);
+        if(this.tile(x,y).t==='floor'&&this.distanceToSafe(x,y)>=minDistance&&!this.enemyAt(x,y)&&!this.itemAt(x,y)&&!this.trapAt(x,y))return {x,y};
+      }
+      return null;
+    }
+    themeIndex(){return Math.min(3,Math.floor((this.floor-1)/3));}
+    theme(){return THEMES[this.themeIndex()];}
+    line(x0,y0,x1,y1) {
+      let x=x0,y=y0,dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,err=dx-dy;
+      const result=[];
+      while(true){result.push({x,y});if(x===x1&&y===y1)break;let e2=2*err;if(e2>-dy){err-=dy;x+=sx;}if(e2<dx){err+=dx;y+=sy;}}
+      return result;
+    }
+    los(x0,y0,x1,y1){
+      if(!this.inside(x1,y1))return false;
+      const l=this.line(x0,y0,x1,y1);
+      return l.slice(1,-1).every(p=>this.tile(p.x,p.y).t!=='wall'&&this.tile(p.x,p.y).smoke===0);
+    }
+    updateVision(){
+      for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+        const t=this.tile(x,y);t.lit=dist(this.player,{x,y})<=6&&this.los(this.player.x,this.player.y,x,y);
+        if(t.lit)t.seen=true;
+      }
+    }
+    pickUp(){
+      const item=this.itemAt(this.player.x,this.player.y);if(!item)return;
+      const d=ITEM[item.type];
+      if(item.type==='blade'){this.attack++;this.say('研ぎ石を発見。攻撃力が上がった。');}
+      else if(item.type==='ward'){this.maxHp+=4;this.hp+=4;this.say('生命の印。最大HPが4上がった。');}
+      else if(this.inventory.length>=8){this.say('荷物がいっぱい。道具はここに残した。');return;}
+      else{this.inventory.push({type:item.type});this.say(d.name+'を拾った。');}
+      this.items=this.items.filter(i=>i.id!==item.id);
+    }
+    triggerTrap(ent) {
+      const isPlayer=ent===this||ent===this.player;
+      const pos=isPlayer?this.player:ent;
+      const t=this.trapAt(pos.x,pos.y);if(!t)return;
+      t.used=true;t.known=true;
+      if(isPlayer){this.hp-=5;this.say('あなたが針の罠を踏んだ！');this.checkDeath();}
+      else{ent.hp-=5;this.say(MONSTERS[ent.type].name+'が針の罠を踏んだ！');this.killIfNeeded(ent);}
+    }
+    checkDeath(){if(this.hp<=0){this.hp=0;this.alive=false;this.say('冒険はここで終わった。');}}
+    killIfNeeded(e){
+      if(e.hp>0)return;
+      this.kills++;this.score+=MONSTERS[e.type].xp*25;
+      this.say(MONSTERS[e.type].name+'を倒した。');
+      this.enemies=this.enemies.filter(m=>m.id!==e.id);
+    }
+    damageEnemy(e,n,description){
+      e.hp-=n;if(description)this.say(description+' '+n+'ダメージ。');
+      this.killIfNeeded(e);
+    }
+    hit(e){
+      const value=this.attack+this.int(0,2)-(e.type==='guard'?2:0);
+      this.damageEnemy(e,Math.max(1,value),MONSTERS[e.type].name+'に攻撃。');
+      this.advance();
+    }
+    move(dx,dy){
+      if(!this.alive||this.won)return {ok:false,reason:'ended'};
+      if(!Number.isInteger(dx)||!Number.isInteger(dy)||Math.max(Math.abs(dx),Math.abs(dy))!==1)return {ok:false,reason:'invalid'};
+      const x=this.player.x+dx,y=this.player.y+dy;
+      if(!this.walkable(x,y)||this.blockedDiagonal(this.player.x,this.player.y,x,y))return {ok:false,reason:'wall'};
+      const enemy=this.enemyAt(x,y);
+      if(enemy){this.hit(enemy);return {ok:true,combat:true};}
+      this.player.x=x;this.player.y=y;
+      const trap=this.trapAt(x,y);if(trap)this.triggerTrap(this);
+      if(!this.alive)return {ok:true,ended:true};
+      this.pickUp();
+      if(x===this.stairs.x&&y===this.stairs.y){this.descend();return {ok:true,descended:true};}
+      this.advance();return {ok:true};
+    }
+    wait(){if(!this.alive||this.won)return false;this.say('一息ついた。');this.advance();return true;}
+    descend(){
+      this.score+=this.floor*100;
+      if(this.floor>=MAX_FLOOR){
+        this.won=true;this.say('星の核を取り戻した！ 深淵を踏破した。');return;
+      }
+      this.floor++;this.hp=Math.min(this.maxHp,this.hp+4);this.generate();
+      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが少し回復。');
+    }
+    pathTo(x,y,adjacentToEnemy){
+      x=Number(x);y=Number(y);
+      if(!this.walkable(x,y))return [];
+      const start=this.player,src=key(start.x,start.y),goal=key(x,y);
+      const open=[{x:start.x,y:start.y,cost:0}],costs=new Map([[src,0]]),prev=new Map();
+      let iter=0,best=null;
+      while(open.length&&iter++<W*H*8){
+        open.sort((a,b)=>a.cost-b.cost);
+        const p=open.shift(),k=key(p.x,p.y);
+        if(p.cost>costs.get(k))continue;
+        if((adjacentToEnemy?Math.max(Math.abs(p.x-x),Math.abs(p.y-y))===1:k===goal)){best=k;break;}
+        for(const [dx,dy] of DIRS){
+          const nx=p.x+dx,ny=p.y+dy;
+          if(!this.walkable(nx,ny)||this.blockedDiagonal(p.x,p.y,nx,ny)||this.enemyAt(nx,ny))continue;
+          const tile=this.tile(nx,ny);
+          const danger=(tile.t==='fire'||tile.fire>0?15:0)+(this.trapAt(nx,ny)?.known?10:0);
+          const next=p.cost+(dx&&dy?1.4:1)+danger;
+          const nk=key(nx,ny);
+          if(next<(costs.get(nk)??Infinity)){costs.set(nk,next);prev.set(nk,k);open.push({x:nx,y:ny,cost:next});}
+        }
+      }
+      if(!best)return [];
+      const path=[];
+      while(best!==src&&path.length<W*H){const [px,py]=best.split(',').map(Number);path.unshift({x:px,y:py});best=prev.get(best);if(!best)return [];}
+      return path;
+    }
+    canSeeDanger(){
+      return this.enemies.some(e=>e.hp>0&&this.tile(e.x,e.y)?.lit&&dist(e,this.player)<=6)||
+        DIRS.some(([dx,dy])=>{const t=this.trapAt(this.player.x+dx,this.player.y+dy);return t&&t.known;});
+    }
+    validTarget(x,y,range=6){
+      return this.inside(x,y)&&dist(this.player,{x,y})<=range&&this.los(this.player.x,this.player.y,x,y);
+    }
+    useItem(index,x,y){
+      if(!this.alive||this.won)return {ok:false,reason:'ended'};
+      const item=this.inventory[index];if(!item)return {ok:false,reason:'missing'};
+      if(item.type==='heal'){
+        if(this.hp>=this.maxHp)return {ok:false,reason:'full'};
+        this.hp=Math.min(this.maxHp,this.hp+12);this.say('治癒の薬で傷を癒した。');
+      }else{
+        if(!this.validTarget(x,y,item.type==='gust'?5:6))return {ok:false,reason:'range'};
+        if(item.type==='spark'){
+          const hits=new Set(),at=this.tile(x,y);
+          if(at.t==='water'||at.t==='ice'){
+            const q=[{x,y}],seen=new Set([key(x,y)]);
+            for(let n=0;n<q.length&&n<90;n++){
+              const p=q[n],e=this.enemyAt(p.x,p.y);if(e)hits.add(e);
+              for(const [dx,dy] of DIRS.slice(0,4)){
+                const nx=p.x+dx,ny=p.y+dy,t=this.tile(nx,ny),k=key(nx,ny);
+                if(t&&['water','ice'].includes(t.t)&&!seen.has(k)){seen.add(k);q.push({x:nx,y:ny});}
+              }
+            }
+            this.say('水脈を電流が走った！');
+          }
+          const direct=this.enemyAt(x,y);if(direct)hits.add(direct);
+          for(const e of hits){e.stun=2;this.damageEnemy(e,8,'雷が'+MONSTERS[e.type].name+'を撃った。');}
+          if(!hits.size)this.say('雷光が闇を裂いた。');
+        }
+        if(item.type==='frost'){
+          let frozen=0;
+          for(let yy=y-2;yy<=y+2;yy++)for(let xx=x-2;xx<=x+2;xx++){
+            const t=this.tile(xx,yy);if(!t||dist({x,y},{x:xx,y:yy})>2)continue;
+            if(t.t==='water'){t.t='ice';frozen++;}
+            if(t.fire){t.fire=0;if(t.t==='fire')t.t='floor';}
+            const e=this.enemyAt(xx,yy);if(e)e.stun=Math.max(e.stun,2);
+          }
+          this.say('霜が広がった。水場が'+frozen+'マス凍った。');
+        }
+        if(item.type==='ember'){
+          for(let yy=y-1;yy<=y+1;yy++)for(let xx=x-1;xx<=x+1;xx++){
+            const t=this.tile(xx,yy);if(!t||t.t==='wall'||t.t==='water'||t.t==='ice')continue;
+            t.fire=Math.max(t.fire,t.t==='oil'||t.t==='bush'?5:2);
+          }
+          this.say('火種が炸裂した。炎は油や草に燃え移る。');
+        }
+        if(item.type==='gust'){
+          const e=this.enemyAt(x,y);if(!e)return {ok:false,reason:'target'};
+          const dx=Math.sign(e.x-this.player.x),dy=Math.sign(e.y-this.player.y);
+          for(let i=0;i<2;i++){
+            const nx=e.x+dx,ny=e.y+dy;
+            if(!this.walkable(nx,ny)||this.enemyAt(nx,ny)||this.blockedDiagonal(e.x,e.y,nx,ny)){
+              this.damageEnemy(e,4,'壁に激突！');break;
+            }
+            e.x=nx;e.y=ny;
+            const trap=this.trapAt(nx,ny);if(trap){this.triggerTrap(e);break;}
+            const t=this.tile(nx,ny);if(t&&t.fire>0){this.damageEnemy(e,4,'炎へ吹き飛ばした！');break;}
+          }
+          this.say('突風が敵を押し流した。');
+        }
+        if(item.type==='smoke'){
+          for(let yy=y-2;yy<=y+2;yy++)for(let xx=x-2;xx<=x+2;xx++){
+            const t=this.tile(xx,yy);if(t&&t.t!=='wall'&&dist({x,y},{x:xx,y:yy})<=2)t.smoke=4;
+          }
+          this.say('濃い煙が視線を遮った。');
+        }
+      }
+      this.inventory.splice(index,1);
+      this.advance();return {ok:true};
+    }
+    _enemyStep(e){
+      const d=dist(e,this.player);
+      if(d>7&&!e.alert&&this.rnd()<0.75)return;
+      if(d<=6&&this.los(e.x,e.y,this.player.x,this.player.y))e.alert=true;
+      if(!e.alert&&this.rnd()<0.65)return;
+      const options=DIRS.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).filter(p=>
+        this.walkable(p.x,p.y)&&!this.enemyAt(p.x,p.y)&&!(p.x===this.player.x&&p.y===this.player.y)&&
+        !this.blockedDiagonal(e.x,e.y,p.x,p.y)&&!(this.tile(p.x,p.y).fire>0&&e.type!=='witch'));
+      if(!options.length)return;
+      options.sort((a,b)=>dist(a,this.player)-dist(b,this.player)+(this.rnd()-.5)*.3);
+      const next=options[0];
+      if(dist(next,this.player)<d||this.rnd()<0.12){e.x=next.x;e.y=next.y;this.triggerTrap(e);}
+    }
+    advance(){
+      if(!this.alive||this.won)return;
+      this.turn++;
+      // Environmental hazards evolve at most one tile each turn per source.
+      const ignite=[];
+      for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+        const t=this.tile(x,y);
+        if(t.fire>0){
+          if(t.t==='water'||t.t==='ice'){t.fire=0;continue;}
+          t.fire--;
+          if(t.fire>0&&this.rnd()<0.22)for(const [dx,dy] of DIRS.slice(0,4)){
+            const n=this.tile(x+dx,y+dy);
+            if(n&&(n.t==='oil'||n.t==='bush')&&n.fire===0)ignite.push(n);
+          }
+        }
+        if(t.smoke>0)t.smoke--;
+      }
+      for(const t of ignite)t.fire=Math.max(t.fire,3);
+      if(this.tile(this.player.x,this.player.y).fire>0){
+        this.hp-=3;this.say('燃える床で3ダメージ！');this.checkDeath();
+      }
+      if(!this.alive)return;
+      for(const e of [...this.enemies]){
+        if(e.hp<=0)continue;
+        const t=this.tile(e.x,e.y);
+        if(t.fire>0&&e.type!=='witch'){this.damageEnemy(e,3,'炎が'+MONSTERS[e.type].name+'を焼いた。');if(e.hp<=0)continue;}
+        if(e.stun>0){e.stun--;continue;}
+        const d=dist(e,this.player),visible=this.los(e.x,e.y,this.player.x,this.player.y);
+        if(e.windup){
+          e.windup=false;
+          if(d===1&&visible){this.hp-=MONSTERS[e.type].atk+2;this.say('重装獣の大振りが命中！');}
+          else this.say('重装獣の大振りを回避した。');
+          this.checkDeath();if(!this.alive)break;continue;
+        }
+        if(d===1&&visible){
+          if(e.type==='brute'){e.windup=true;this.say('重装獣が大きく腕を振り上げた！');continue;}
+          const hit=MONSTERS[e.type].atk+(e.type==='eel'&&this.tile(this.player.x,this.player.y).t==='water'?2:0);
+          this.hp-=hit;this.say(MONSTERS[e.type].name+'から'+hit+'ダメージ。');this.checkDeath();if(!this.alive)break;
+        }else if(e.type==='archer'&&d<=4&&visible&&this.turn%2===0){
+          this.hp-=2;this.say('射手の矢が飛んできた！ -2HP');this.checkDeath();if(!this.alive)break;
+        }else if(e.type==='witch'&&d<=4&&visible&&this.rnd()<0.26){
+          const p=this.tile(this.player.x,this.player.y);
+          if(p.t!=='water'&&p.t!=='ice'){p.fire=2;this.say('火術師が足元に火を放った！');}
+        }else this._enemyStep(e);
+      }
+      this.updateVision();
+    }
+    inspect(x,y) {
+      if(!this.inside(x,y))return {name:'闇',desc:'未探索の場所'};
+      const t=this.tile(x,y);
+      if(!t.seen)return {name:'未探索',desc:'そこには何があるだろう。'};
+      const e=t.lit?this.enemyAt(x,y):null,i=t.lit?this.itemAt(x,y):null,trap=this.trapAt(x,y);
+      if(e){const d=MONSTERS[e.type];return {name:d.name,desc:'HP '+e.hp+'/'+e.maxHp+' · 攻撃'+d.atk+(e.windup?' · 次のターンに強攻撃！':'')};}
+      if(i)return {name:ITEM[i.type].name,desc:ITEM[i.type].desc};
+      if(x===this.stairs.x&&y===this.stairs.y)return {name:this.floor===MAX_FLOOR?'星の核':'下り階段',desc:'踏むと次の階層へ進む。'};
+      if(trap&&trap.known)return {name:'針の罠',desc:'踏むと5ダメージ。'};
+      if(t.fire>0)return {name:'炎',desc:'踏むと毎ターン3ダメージ。油や草に延焼する。'};
+      const names={wall:'岩壁',floor:'石床',water:'水脈',oil:'油溜まり',bush:'茂み',ice:'氷床'};
+      const desc={wall:'通れない。視界も遮る。',floor:'歩ける床。',water:'雷が伝わり、氷結の瓶で凍る。',oil:'火種で燃え広がる。',bush:'燃えやすく、移動を妨げる。',ice:'水脈を凍らせてできた床。'};
+      return {name:names[t.t]||t.t,desc:desc[t.t]||''};
+    }
+    status(){return {floor:this.floor,maxFloor:MAX_FLOOR,hp:this.hp,maxHp:this.maxHp,attack:this.attack,turn:this.turn,kills:this.kills,score:this.score,alive:this.alive,won:this.won,theme:this.theme().name};}
+  }
+  return {Game,MONSTERS,ITEM,THEMES,W,H,MAX_FLOOR,DIRS};
+});

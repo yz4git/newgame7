@@ -1,176 +1,54 @@
 <!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#100b21">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="かわいい・クール・サプライズ！ 3つのレーンでリズムを刻み、動画のダンスをつなげるファン獲得音楽ゲーム。">
-  <title>KAWAII MOTION — リズムでファン獲得バトル</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="assets/kawaii-icon.svg">
-  <link rel="stylesheet" href="dance.css">
-</head>
-<body>
-<main id="app" class="app">
-  <header class="topbar">
-    <div class="brand"><span class="brand-icon">✿</span><div><strong>KAWAII <em>MOTION</em></strong><small>LIVE DANCE / FAN BATTLE</small></div></div>
-    <div class="top-actions"><button id="soundBtn" type="button" class="icon-btn" aria-label="サウンドをオン・オフ">♪</button></div>
-  </header>
-
-  <section class="score-panel" aria-label="ファン数">
-    <div class="score-side hero-side">
-      <span class="player-name">✿ 桜華 <small>YOU</small></span>
-      <strong id="heroFans" class="count" aria-live="polite">650</strong>
-      <span class="unit">FANS</span>
-    </div>
-    <div class="score-mid"><span class="vs">VS</span><span id="roundBadge">BEAT 01 / 05</span></div>
-    <div class="score-side rival-side">
-      <span class="player-name">レイナ <small>RIVAL</small> ✦</span>
-      <strong id="rivalFans" class="count" aria-live="polite">850</strong>
-      <span class="unit">FANS</span>
-    </div>
-    <div class="support-track"><div id="supportFill"></div></div>
-  </section>
-
-  <section class="stage" id="stage" data-scene="sakura" data-motion="opening" aria-label="ダンス映像のステージ">
-    <div class="light-beam beam-1"></div><div class="light-beam beam-2"></div>
-    <div class="stage-backdrop"><div class="stage-moon"></div><div class="stage-arch"></div><div class="stage-led"></div></div>
-    <div id="videoLayer" class="video-layer">
-      <video id="clipVideo" muted playsinline webkit-playsinline preload="metadata"></video>
-      <img id="clipGif" alt="選択したダンス映像">
-    </div>
-    <div id="noteHighway" class="note-highway" aria-label="3レーンのリズムノーツ">
-      <div class="note-lane lane-cute"><span>♡</span></div>
-      <div class="note-lane lane-cool"><span>✦</span></div>
-      <div class="note-lane lane-surprise"><span>★</span></div>
-      <div class="note-target-line" aria-hidden="true"></div>
-      <div id="noteContainer" class="note-container" aria-hidden="true"></div>
-      <div class="target-labels" aria-hidden="true"><span>♡</span><span>✦</span><span>★</span></div>
-      <div class="note-feedback" id="noteFeedback" aria-live="polite">READY!</div>
-    </div>
-    <div class="performers" id="performers" aria-hidden="true">
-      <div class="performer rival" id="rivalFigure">
-        <div class="figure">
-          <div class="hair-back"></div><div class="leg leg-a"></div><div class="leg leg-b"></div>
-          <div class="body"></div><div class="skirt"></div><div class="neck"></div>
-          <div class="arm arm-a"></div><div class="arm arm-b"></div>
-          <div class="head"><div class="bangs"></div><div class="eye eye-a"></div><div class="eye eye-b"></div><div class="smile"></div></div>
-          <div class="bun"></div>
-        </div>
-        <span class="ground-shadow"></span>
-      </div>
-      <div class="performer hero" id="heroFigure">
-        <div class="figure">
-          <div class="hair-back"></div><div class="leg leg-a"></div><div class="leg leg-b"></div>
-          <div class="body"></div><div class="skirt"></div><div class="neck"></div>
-          <div class="arm arm-a"></div><div class="arm arm-b"></div>
-          <div class="head"><div class="bangs"></div><div class="eye eye-a"></div><div class="eye eye-b"></div><div class="smile"></div></div>
-          <div class="ribbon"></div><div class="bun"></div>
-        </div>
-        <span class="ground-shadow"></span>
-      </div>
-    </div>
-    <div class="crowd">
-      <div class="crowd-row back"></div><div class="crowd-row front"></div>
-      <span class="stick s1"></span><span class="stick s2"></span><span class="stick s3"></span><span class="stick s4"></span><span class="stick s5"></span><span class="stick s6"></span>
-    </div>
-    <div class="particles" id="particles" aria-hidden="true"><span>♡</span><span>✦</span><span>★</span><span>♡</span><span>✧</span><span>♡</span><span>★</span></div>
-    <div class="stage-tint"></div>
-    <div class="stage-topline"><span id="sceneId">CUT 01</span><span id="scenePlace">SAKURA STAGE</span></div>
-    <div class="stage-bottomline"><span id="sceneTitle">THE STAGE IS YOURS</span><span id="clipBadge">ANIMATIC / DEMO</span></div>
-    <div class="pop-up" id="fanPopup" aria-live="polite">+320 FANS!</div>
-    <div class="stage-caption" id="sceneCaption">観客の求めるパフォーマンスを選ぼう！</div>
-  </section>
-
-  <section class="control-panel" aria-label="パフォーマンス選択">
-    <div class="audience-panel">
-      <div class="audience-label">
-        <span class="mood-icon" id="moodIcon">♡</span>
-        <div class="mood-text"><small>AUDIENCE REQUEST</small><strong id="moodText">かわいい系を求めている！</strong></div>
-      </div>
-      <div class="rival-label"><small>RIVAL STYLE</small><strong id="rivalStyle">✦ COOL</strong></div>
-    </div>
-    <p id="audienceTell" class="crowd-tell">観客がハートのペンライトを振っている</p>
-    <div class="rhythm-box">
-      <div class="rhythm-head"><span id="cueLabel">118 BPM · READY</span><span id="secondsLeft">0.0s</span></div>
-      <div class="rhythm-track"><div class="rhythm-window" id="rhythmWindow"></div><div class="rhythm-head-pointer" id="rhythmPointer"></div></div>
-    </div>
-    <div class="choice-heading"><span id="phraseLabel">♫ VERSE · 4 NOTES</span><span id="chainText">COMBO ×0</span></div>
-    <div id="choices" class="choices" aria-label="次のダンス演出"></div>
-    <div class="hype-row"><span>✦ CROWD HYPE</span><div class="hype-track"><div id="hypeFill"></div></div><strong id="hypeText">0%</strong></div>
-    <div class="hint" id="gameHint">流れるノーツが判定ラインに来たら同じ色をタップ！</div>
-    <div class="utility-row">
-      <button id="retakeBtn" type="button" class="utility-btn">↶ RETAKE <span id="retakesLeft">02</span></button>
-      <button id="pauseBtn" type="button" class="utility-btn">Ⅱ PAUSE</button>
-      <button id="libraryBtn" type="button" class="utility-btn">▣ CLIPS</button>
-    </div>
-  </section>
-
-  <section id="titleOverlay" class="overlay visible" aria-label="タイトル画面">
-    <div class="overlay-card title-card">
-      <div class="eyebrow">A PLAYABLE DANCE FILM</div>
-      <div class="logo-sparkle">✿ ♡ ✦</div>
-      <h1>KAWAII<br><em>MOTION</em></h1>
-      <p class="title-sub">踊って、魅せて、ファンを奪え！</p>
-      <p>118 BPMのオリジナルポップ曲で、ノーツは4→5→6→6→7と増えていく！ 虹色ノーツでダンスを選び、コンボと演出でファンを奪おう。</p>
-      <div class="title-pill"><span>♡ CUTE</span><span>✦ COOL</span><span>★ SURPRISE</span></div>
-      <button id="startBtn" type="button" class="primary-btn">▶ STAGE START</button>
-      <button id="titleLibraryBtn" type="button" class="secondary-btn">GIF・動画を割り当てる</button>
-      <small>RHYTHM EDITION v1.1 · 118 BPM · 全28ノーツ · 5つの曲展開 · iPhone縦画面。開始タップ後に音が鳴ります。</small>
-    </div>
-  </section>
-  <section id="resultOverlay" class="overlay" aria-label="バトル結果">
-    <div class="overlay-card result-card">
-      <div class="eyebrow" id="resultEyebrow">THE FINAL VOTE</div>
-      <div class="result-symbol" id="resultSymbol">♡</div>
-      <h2 id="resultTitle">ENCORE!</h2>
-      <p id="resultMessage">観客がアンコールを求めている！</p>
-      <div class="result-stats">
-        <div><small>桜華</small><strong id="finalHero">0</strong><small>FANS</small></div>
-        <div><small>レイナ</small><strong id="finalRival">0</strong><small>FANS</small></div>
-        <div><small>BEST CHAIN</small><strong id="finalChain">×0</strong><small>LINKS</small></div>
-      </div>
-      <div id="finalAccuracy" class="result-accuracy">PERFECT 0 · GREAT 0 · GOOD 0 · MISS 0</div>
-      <div id="reel" class="reel" aria-label="選択したダンス映像"></div>
-      <button id="replayBtn" type="button" class="primary-btn">▶ PERFORMANCE REPLAY</button>
-      <div class="twin-actions"><button id="resultRetakeBtn" type="button" class="secondary-btn">↶ RETAKE</button><button id="restartBtn" type="button" class="secondary-btn">もう一度</button></div>
-    </div>
-  </section>
-  <section id="pauseOverlay" class="overlay" aria-label="ポーズ">
-    <div class="overlay-card"><div class="eyebrow">STAGE ON HOLD</div><h2>PAUSE</h2>
-      <p>再開すると同じ映像の続きから進行します。</p>
-      <div class="timing-calibration">
-        <label for="timingOffset">タップ判定補正 <output id="timingOffsetValue">0 ms</output></label>
-        <input id="timingOffset" type="range" min="-120" max="120" step="10" value="0" aria-label="判定タイミング補正">
-        <div class="timing-scale"><span>−120ms（遅めのタップ）</span><span>＋120ms（早めのタップ）</span></div>
-      </div>
-      <button id="resumeBtn" type="button" class="primary-btn">▶ RESUME</button>
-      <button id="exitBtn" type="button" class="secondary-btn">タイトルへ</button></div>
-  </section>
-  <section id="libraryOverlay" class="overlay" aria-label="GIF動画の割当">
-    <div class="overlay-card library-card">
-      <div class="eyebrow">MOTION LIBRARY</div><h2>CLIP STUDIO</h2>
-      <p>好きなダンスGIF/MP4をゲーム中のシーンに割り当てます。端末内だけで使用し、アップロードはしません。</p>
-      <label for="clipNode">映像シーン</label><select id="clipNode" class="field"></select>
-      <label for="clipEntry">どの演出からつながるか</label><select id="clipEntry" class="field"><option value="">共通の映像</option></select>
-      <label for="clipFile">GIF / MP4 / WebM / WebP</label><input id="clipFile" class="field" type="file" accept="video/mp4,video/webm,image/gif,image/webp,video/*">
-      <div class="asset-state" id="assetState">未割当：アニマティック表示</div>
-      <label for="packFile">クリップパックを一括読み込み（ZIP）</label>
-      <input id="packFile" class="field" type="file" accept=".zip,application/zip,application/x-zip-compressed">
-      <div id="packState" class="pack-state" role="status">無圧縮ZIPなら4本まとめて読み込めます。</div>
-      <button id="clearClipBtn" type="button" class="secondary-btn">この割当を解除</button>
-      <button id="closeLibraryBtn" type="button" class="primary-btn">完了</button>
-      <small>一時割当はブラウザー再読込で消えます。ゲームに恒久登録する場合は assets/manifest.json を編集します。</small>
-    </div>
-  </section>
-  <footer class="footer-label">KAWAII MOTION · DANCE FILM PROTOTYPE</footer>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07131b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="指一本で探索する、環境連鎖型ターン制ローグライク。タップ・スワイプ・長押しで12層の深淵へ。">
+<title>深界の織り手 — DEEP WEAVE</title>
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="./icon.svg">
+<link rel="stylesheet" href="./style.css">
+</head><body>
+<main id="app">
+<header class="top">
+  <div class="brand"><span class="sigil">✦</span><div><strong>深界の織り手</strong><small>DEEP WEAVE — ROGUELIKE</small></div></div>
+  <div class="head-tools">
+    <button id="soundButton" type="button" aria-label="音を出す">♫̸</button>
+    <button id="newButton" type="button" aria-label="新しい冒険">↻</button>
+    <button id="helpButton" type="button" aria-label="遊び方">?</button>
+  </div>
+</header>
+<section class="hud" aria-label="冒険の状況">
+  <div class="stat-strip">
+    <div class="hud-row"><span id="floorLabel" class="floor">B1 / 12</span><span id="floorName" class="floor-sub">忘却の石廊</span></div>
+    <div class="track"><div id="hpBar" class="hp-fill"></div></div>
+  </div>
+  <div class="stat-strip">
+    <div class="hp"><span>HP</span><span id="hpText">30 / 30</span></div>
+    <div class="hud-stats"><span>ATK <b id="atkText">5</b></span><span>TURN <b id="turnText">0</b></span></div>
+  </div>
+  <div class="hud-stats" style="grid-column:1/-1"><span>一歩が一手。静止すれば時間も止まる。</span><span class="counter">SCORE <b id="scoreText">0</b></span></div>
+</section>
+<section class="map-wrap" aria-label="ダンジョン">
+  <div class="map-corners"><span id="viewFloor">B1</span><span>✦ THE DESCENT ✦</span></div>
+  <div class="map-frame"><canvas id="board" width="330" height="390" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas></div>
+  <div class="map-corners"><span>THE UNKNOWN AWAITS</span><span id="viewTurn">TURN 0</span></div>
+</section>
+<section class="feedback"><div class="log" id="recent" aria-live="polite">影の底へ進もう。</div><div class="hint" id="hint">タップで進む · スワイプで1歩 · 長押しで調べる</div></section>
+<section class="actions" aria-label="行動">
+  <button type="button" id="bagButton" class="action primary"><strong>✧</strong><span>道具を使う</span><small id="bag">3/8</small></button>
+  <button type="button" id="waitButton" class="action"><strong>◷</strong><span>1ターン待つ</span></button>
+  <button type="button" class="action" onclick="document.getElementById('helpButton').click()"><strong>?</strong><span>遊び方</span></button>
+</section>
+<button type="button" id="cancelAim" hidden>✕ 対象選択を解除</button>
+<p class="copyright">NO PAD. NO STICK. ONE FINGER, INFINITE CHOICES.</p>
 </main>
-<script src="dance-graph.js"></script>
-<script src="clip-pack.js"></script>
-<script src="rhythm-core.js"></script>
-<script src="rhythm-audio.js"></script>
-<script src="dance.js"></script>
-</body>
-</html>
+<div id="toast" role="status"></div>
+<div id="tooltip" hidden role="status"></div>
+<aside id="sheet" hidden aria-label="道具袋"></aside><div id="sheetBackdrop"></div>
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box"><h2 id="modalTitle">深界の織り手</h2><div id="modalBody"></div><div id="modalActions" class="modal-actions"></div></div>
+</div>
+<script src="./engine.js"></script><script src="./game.js"></script>
+</body></html>
