@@ -40,7 +40,7 @@ h.enemies.push({id:900,type:'guard',x:points[0][0],y:points[0][1],hp:40,maxHp:40
 h.enemies.push({id:901,type:'guard',x:points[1][0],y:points[1][1],hp:40,maxHp:40,stun:0,windup:false,alert:false});
 assert.equal(h.useItem(1,points[0][0],points[0][1]).ok,true);
 assert.ok(h.enemies.every(e=>e.hp<=32),'water shock must hit connected enemies');
-assert.equal(h.inventory.length,2);
+assert.equal(h.inventory.length,3);
 const w=new Game(108);
 for(let floor=1;floor<MAX_FLOOR;floor++){w.descend();assert.equal(w.floor,floor+1);}
 assert.equal(w.won,false);w.descend();assert.equal(w.won,true);
@@ -111,5 +111,103 @@ for(let seed=11;seed<=55;seed++){
 const envRatio=environment.reduce((a,b)=>a+b,0)/environment.length;
 assert.ok(envRatio>=0.42,'enemies should meaningfully interact with terrain: '+envRatio);
 console.log('PASS: trap discovery, safe detours, manual hazard stepping, corner flanking, telegraphed spells, terrain placement ('+(envRatio*100).toFixed(1)+'%)');
+
+
+
+// Elemental-first floors remain navigable and mostly interactive.
+const coverage=[];
+for(let seed=1;seed<=100;seed++){
+  const field=new Game(seed);
+  const walk=field.map.flat().filter(t=>t.t!=='wall');
+  const elemental=walk.filter(t=>['water','oil','bush','ice'].includes(t.t));
+  const ratio=elemental.length/walk.length;
+  coverage.push(ratio);
+  assert.ok(ratio>.75,'insufficient elemental tiles on seed '+seed+': '+ratio);
+  assert.ok(field.pathTo(field.stairs.x,field.stairs.y).length>0,
+    'elemental floor must stay connected: '+seed);
+}
+const average=coverage.reduce((a,b)=>a+b,0)/coverage.length;
+assert.ok(average>.82,'elemental area should dominate');
+
+// Friendly-fire ownership survives multiple ticks and secondary spread.
+const own=new Game(426);own.enemies=[];own.items=[];own.traps=[];
+own.player={x:10,y:10};
+for(let y=7;y<=13;y++)for(let x=7;x<=14;x++){
+  own.tile(x,y).t='oil';own.tile(x,y).fire=0;
+}
+own.tile(10,10).t='oil';
+const ownStart=own.hp, ownTurn=own.turn;
+const ember=own.inventory.findIndex(i=>i.type==='ember');
+assert.ok(ember>=0,'starting inventory should have a fire spell');
+assert.equal(own.useItem(ember,10,10).ok,true);
+assert.equal(own.turn,ownTurn+1);
+assert.equal(own.hp,ownStart,'own fire must not damage player');
+assert.equal(own.tile(10,10).fireOwner,'player');
+assert.ok(own.effects.some(e=>e.type==='ember'));
+for(let i=0;i<4;i++)own.advance();
+assert.equal(own.hp,ownStart,'propagated friendly fire must stay harmless');
+assert.ok(own.effects.some(e=>e.type==='spread'),'spread animation event missing');
+assert.ok(own.effects.every(e=>e.points.length<151));
+const friendly=Array.from({length:7},(_,y)=>Array.from({length:8},(_,x)=>
+  own.tile(x+7,y+7))).flat().filter(t=>t.fire>0);
+assert.ok(friendly.length>0,'fire should have propagated over oil terrain');
+assert.ok(friendly.every(t=>t.fireOwner==='player'));
+
+// Enemy fire remains dangerous even if the player has previously cast fire.
+const hostile=new Game(427);hostile.enemies=[];hostile.items=[];hostile.traps=[];
+hostile.player={x:10,y:10};
+for(let y=9;y<=12;y++)for(let x=8;x<=14;x++)hostile.tile(x,y).t='floor';
+hostile.enemies=[{id:950,type:'witch',x:13,y:10,hp:10,maxHp:10,cast:'fire',
+  windup:false,alert:true,stun:0}];
+hostile.advance();
+assert.equal(hostile.tile(10,10).fireOwner,'enemy');
+const hpBeforeEnemyFire=hostile.hp;
+hostile.advance();
+assert.equal(hostile.hp,hpBeforeEnemyFire-3,
+  'enemy-origin flame must still damage the adventurer');
+
+// Electric chain must have the same wave tiles in VFX and damage logic.
+const z=new Game(428);z.enemies=[];z.items=[];z.traps=[];
+z.player={x:10,y:10};
+for(let x=11;x<=16;x++){z.tile(x,10).t='water';}
+z.enemies=[{id:960,type:'guard',x:16,y:10,hp:30,maxHp:30,
+  cast:null,stun:0,windup:false,alert:false}];
+const beforeLightning=z.enemies[0].hp;
+assert.equal(z.useItem(1,11,10).ok,true);
+assert.equal(z.enemies[0].hp,beforeLightning-8,'distant enemy should take chained damage');
+const electric=z.effects.find(e=>e.type==='spark');
+assert.ok(electric&&electric.points.length>=6,'electric wave tiles missing');
+assert.equal(electric.points.find(p=>p.x===16&&p.y===10).step,5);
+assert.ok(z.effectSeq>=1);
+const revived=Game.restore(z.serialize());
+assert.equal(revived.effectSeq,z.effectSeq,'effect state should save cleanly');
+const quick=new Game(998),suggest=quick.suggestSkill();
+assert.ok(suggest,'nearby enemies should enable quick skill');
+assert.ok(suggest.index>=0&&suggest.index<quick.inventory.length);
+const beforeQuick=quick.turn,countBefore=quick.inventory.length;
+assert.equal(quick.useItem(suggest.index,suggest.x,suggest.y).ok,true);
+assert.equal(quick.turn,beforeQuick+1);
+assert.equal(quick.inventory.length,countBefore-1);
+assert.ok(quick.effects.length>0,'one-tap cast should produce animated data');
+// Old in-progress saves get denser elemental terrain without losing progress.
+const oldRun=new Game(421);
+oldRun.turn=17;oldRun.hp=24;oldRun.player={...oldRun.player};
+const oldJson=JSON.parse(oldRun.serialize());
+delete oldJson.elementRevision;
+for(const row of oldJson.map)for(const t of row)
+  if(['water','oil','bush','ice'].includes(t.t))t.t='floor';
+oldJson.map[oldRun.player.y+2][oldRun.player.x].t='water';
+const oldPlayer=oldJson.player,oldTurn=oldJson.turn;
+const upgrade=Game.restore(oldJson);
+assert.equal(upgrade.turn,oldTurn);
+assert.deepEqual(upgrade.player,oldPlayer);
+assert.equal(upgrade.hp,24);
+assert.equal(upgrade.elementRevision,1);
+const upgradedWalk=upgrade.map.flat().filter(t=>t.t!=='wall');
+assert.ok(upgradedWalk.filter(t=>['water','oil','bush','ice'].includes(t.t)).length/
+  upgradedWalk.length>.7,'old save did not get elemental floor');
+
+console.log('PASS: 100 elemental floors ('+(average*100).toFixed(1)+
+  '%), friendly/enemy fire ownership, propagated VFX, and one-tap skill.');
 
 console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');

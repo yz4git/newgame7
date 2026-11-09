@@ -190,3 +190,48 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .log-entry {padding:9px 8px;border-bottom:1px solid #49636a;font-size:12px;color:#dbe6e4;line-height:1.6;text-align:left;}
 .log-entry span {display:inline-block;color:#e9c889;font-size:10px;font-variant-numeric:tabular-nums;min-width:64px;}
 .hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+
+/* Elemental Chain Edition: four thumb-sized commands; the bright one is
+   automatically selected from spells that currently have useful targets. */
+#app > .actions{
+  grid-template-columns: 1fr 1.24fr .80fr .80fr;
+  gap: 5px;
+}
+#app > .actions .action {
+  min-width:0;
+  padding:5px 2px;
+  gap:2px;
+}
+#app > .actions .action span {
+  display:block;
+  max-width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-size:10px;
+}
+#skillButton{
+  border:1px solid #4e6672;
+  background:linear-gradient(160deg,#1e3f47,#102933);
+  color:#a7b6b9;
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+#skillButton.ready{
+  color:#fff5d8;
+  border-color:#ffc86d;
+  background:linear-gradient(160deg,#76552c,#364e50);
+  box-shadow:0 3px 0 #07121a,0 0 17px #f8b35f66,inset 0 1px 0 #f9e1a055;
+}
+#skillButton.ready strong{
+  font-size:22px;
+  filter:drop-shadow(0 0 5px #ffd377);
+}
+#skillButton:disabled{
+  cursor:default;
+  opacity:.67;
+}
+#skillButton.ready small{
+  color:#ffe6a5;
+  font-weight:700;
+}

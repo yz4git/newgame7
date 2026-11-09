@@ -130,6 +130,28 @@ async function run(){
       await page.waitForTimeout(250);
       assert.equal(versionRequests.length,1,'release check should only happen at boot');
       assert.equal(await page.evaluate(()=>window.__deepWeaveTest.getState().turn),after.turn+1);
+      // Elemental quick-skill is a single visible touch button and consumes
+      // exactly one action and one inventory item. The actual propagated
+      // engine wave must also be visible on the Canvas.
+      await page.evaluate(()=>window.__deepWeaveTest.seedRun(998));
+      const recommended=await page.evaluate(()=>window.__deepWeaveTest.getQuick());
+      assert.ok(recommended&&recommended.index>=0,'no elemental technique recommended');
+      const skillButton=page.locator('#skillButton');
+      assert.equal(await skillButton.isEnabled(),true);
+      assert.match(await skillButton.getAttribute('aria-label'),/属性技を発動/);
+      const original=await page.evaluate(()=>window.__deepWeaveTest.getState());
+      await skillButton.click();
+      await page.waitForFunction(()=>window.__deepWeaveTest.getState().turn===1);
+      await page.waitForFunction(()=>window.__deepWeaveTest.getVfx().active>0);
+      const elemental=await page.evaluate(()=>({
+        state:window.__deepWeaveTest.getState(),
+        visual:window.__deepWeaveTest.getVfx()
+      }));
+      assert.equal(elemental.state.turn,original.turn+1);
+      assert.equal(elemental.state.inventory,original.inventory-1);
+      assert.ok(elemental.visual.latest>0&&elemental.visual.active>0,
+        'no animated elemental propagation: '+JSON.stringify(elemental));
+      await page.screenshot({path:'playcheck-output/'+name+'-elemental.png',fullPage:true});
       assert.deepEqual(errors,[],'browser errors');
       // Different release only at a new launch: stale shell redirects once
       // and then loads the versioned assets, without an infinite loop.

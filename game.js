@@ -9,7 +9,8 @@
   const recent=$('recent'),bag=$('bag'),tooltip=$('tooltip'),toastEl=$('toast'),sheet=$('sheet'),modal=$('modal'),hint=$('hint');
   let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
   let soundEnabled=false,audioContext=null;
-  let particles=[],armedTrap=null,flashUntil=0;
+  let particles=[],armedTrap=null,flashUntil=0,quickSuggestion=null;
+  let lastEffectSeq=0,activeVfx=[];
   function load(){
     try{const raw=localStorage.getItem(STORE);if(raw){game=Game.restore(raw);return true;}}catch(e){console.warn('Save unavailable',e);}
     game=new Game();return false;
@@ -43,11 +44,22 @@
     atkText.textContent=s.attack;turnText.textContent=s.turn;scoreText.textContent=s.score;
     const last=game.log[0];recent.textContent=last?last.text:'影の底へ進もう。';
     bag.textContent=game.inventory.length+'/8';
+    quickSuggestion=game.suggestSkill();
+    const quick=$('skillButton');
+    quick.disabled=!quickSuggestion||aim>=0||!s.alive||s.won;
+    quick.classList.toggle('ready',!quick.disabled);
+    const quickType=quickSuggestion?ITEM[quickSuggestion.type]:null;
+    $('skillGlyph').textContent=quickType?quickType.glyph:'✦';
+    $('skillGlyph').style.color=quickType?quickType.color:'';
+    $('skillLabel').textContent=quickSuggestion?quickSuggestion.name:'属性技';
+    $('skillInfo').textContent=quickSuggestion?'1タップ発動':'敵を発見で発動';
+    quick.setAttribute('aria-label',quickSuggestion?'属性技を発動：'+quickSuggestion.name:'発動可能な属性技はありません');
     const warning=game.enemies.find(e=>game.tile(e.x,e.y)?.lit&&(e.cast||e.windup));
     hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
       warning?(warning.windup?'⚠ 重装獣の強攻撃を回避！':
         warning.cast==='arrow'?'⚠ 射手が狙っている！壁・煙の陰へ':'⚠ 火術の詠唱中！退避しよう'):
       autoTarget?'自動移動中 · 敵・罠を見つけると停止':
+      quickSuggestion?'✦ '+quickSuggestion.name+'が発動可能 · 属性技をタップ':
       'タップで進む · スワイプで1歩 · 長押しで調べる';
     $('cancelAim').hidden=aim<0;
     $('cancelAim').classList.toggle('active',aim>=0);
@@ -59,7 +71,8 @@
   }
   function startNew(){
     stopAuto();aim=-1;selection=null;armedTrap=null;
-    game=new Game();clearSave();save();hideSheet();hideModal();refresh();showToast('新たな探索が始まった');
+    game=new Game();lastEffectSeq=0;activeVfx=[];quickSuggestion=null;
+    clearSave();save();hideSheet();hideModal();refresh();showToast('新たな探索が始まった');
   }
   function hideModal(){modal.hidden=true;modalMode='';}
   function showModal(title,html,buttons){
@@ -77,7 +90,7 @@
     showModal('深界の織り手',
       '<div class="intro-emblem">✧</div><p><strong>指一本で挑む、12層の深淵。</strong></p>'+
       '<p>毎回姿を変える地下遺跡から「星の核」を持ち帰ろう。動かなければ敵も動かない。水・電気・炎・風を使い、道を切り開く。</p>'+
-      '<div class="intro-keys"><span>タップ　移動・攻撃</span><span>スワイプ　1歩</span><span>長押し　調べる</span></div>',
+      '<div class="intro-keys"><span>タップ　移動・攻撃</span><span>スワイプ　1歩</span><span>長押し　調べる</span><span>✦ 属性技　1タップ</span></div>',
       [{label:returning?'冒険を再開':'探索を始める',primary:true,click:()=>{hideModal();refresh();}},
        {label:'操作説明',click:()=>showHelp()}]
     );
@@ -88,8 +101,10 @@
       '<p><b>タップ</b>：床なら移動。離れた床は安全な範囲で経路をたどる。敵なら接近・攻撃。階段に乗ると次の層。</p>'+
       '<p><b>スワイプ</b>：8方向へ1歩。隣の敵に向かってスワイプすると近接攻撃。危険な敵のそばではこちらが確実。</p>'+
       '<p><b>長押し</b>：敵・地形・道具の情報。長押ししてドラッグすると経路指定。</p>'+
-      '<p><b>道具</b>：下の鞄から選び、使用対象をタップする。薬はすぐに使う。</p>'+
-      '<p><b>連鎖</b>：水+雷=感電、油+炎=延焼、水+氷=凍結、風+敵+罠=追加ダメージ。</p>'+
+      '<p><b>✦ 属性技</b>：敵や地形に合わせて最適な技を自動提案。光っている時に1タップで発動。アイテムを1個消費する。</p>'+
+      '<p><b>道具</b>：鞄から道具を選んで好きな場所に使うこともできる。薬はすぐ使用。</p>'+
+      '<p><b>連鎖</b>：水・氷は雷が広域伝播、水は氷に変化、油・草は炎が連続延焼、風で敵を罠や炎へ誘導。</p>'+
+      '<p><b>自分の技は安全</b>：自分の火種から生じた炎ではダメージを受けない。敵が作った炎は危険。</p>'+
       '<p><b>ターン</b>：移動、攻撃、道具使用、待機でのみ敵が動く。長押しやメニューでは進まない。死亡で探索終了。</p>',
       [{label:'図鑑を見る',click:()=>showLegend('terrain')},
        {label:'戻る',primary:true,click:()=>{hideModal();refresh();}}]
@@ -104,11 +119,11 @@
     {name:'岩壁',desc:'通れない。敵の視線や飛び道具も遮る。',tile:'wall'},
     {name:'石床',desc:'歩ける通常の床。',tile:'floor'},
     {name:'未探索',desc:'まだ見えていない暗闇。近づいて明らかにしよう。',tile:'floor',unseen:true},
-    {name:'水脈',desc:'青い水。雷を流して複数の敵に感電させられる。',tile:'water'},
-    {name:'氷床',desc:'水を凍らせた床。氷結の瓶で作れる。',tile:'ice'},
+    {name:'水脈',desc:'雷が隣接した水・氷へ何マスも伝播。敵が離れていても感電。',tile:'water'},
+    {name:'氷床',desc:'水を凍らせた床。雷も水と氷を連鎖して流れる。',tile:'ice'},
     {name:'油溜まり',desc:'暗い紫の床。炎に触れると燃え広がる。',tile:'oil'},
     {name:'茂み',desc:'緑の草。油と同じく炎が燃え移る。',tile:'bush'},
-    {name:'炎',desc:'赤い炎。立っていると毎ターン3ダメージ。',tile:'floor',fire:3},
+    {name:'炎',desc:'敵の炎は毎ターン3ダメージ。自分の火種・伝播炎は自分に無害。',tile:'floor',fire:3},
     {name:'煙',desc:'煙玉で発生。敵の射線を遮る。',tile:'floor',smoke:4},
     {name:'針の罠',desc:'周囲2マスで発見。自動移動は避け、手動操作では2回確認。敵を押し込める。',tile:'floor',feature:'trap'}
   ];
@@ -262,7 +277,7 @@
       if(!it){aim=-1;refresh();return;}
       const res=game.useItem(aim,x,y);
       if(res.ok){aim=-1;sound(740,.17);afterAction(old);}
-      else showToast(res.reason==='range'?'射程外・壁や煙で狙えない':res.reason==='target'?'吹き飛ばす敵を選んで':'使用できない');
+      else showToast(res.reason==='range'?'射程外・壁や煙で狙えない':res.reason==='target'?(it.type==='ember'?'燃やせる床を選んで':'吹き飛ばす敵を選んで'):'使用できない');
       refresh();return;
     }
     const t=game.tile(x,y);if(!t||!t.seen){showToast('まだ見えない場所');return;}
@@ -348,6 +363,21 @@
     showModal('冒険の記録',messages||'<p>まだ記録がありません。</p>',
       [{label:'冒険に戻る',primary:true,click:()=>{hideModal();refresh();}}]);
   });
+  $('skillButton').onclick=()=>{
+    if(!game.alive||game.won||!modal.hidden||!sheet.hidden)return;
+    stopAuto();aim=-1;selection=null;
+    // Recompute to avoid a stale target after enemy movement.
+    const suggestion=game.suggestSkill();
+    if(!suggestion){showToast('いま使える属性連鎖がない');refresh();return;}
+    const old=game.turn;
+    const result=game.useItem(suggestion.index,suggestion.x,suggestion.y);
+    if(result.ok){
+      sound(suggestion.type==='spark'?900:suggestion.type==='ember'?480:650,.18);
+      showToast(ITEM[suggestion.type].glyph+' '+suggestion.name+'！');
+      afterAction(old);
+    }else showToast('属性技の発動条件を満たしていない');
+    refresh();
+  };
   $('waitButton').onclick=()=>{stopAuto();const old=game.turn;game.wait();afterAction(old);};
   $('helpButton').onclick=showHelp;
   $('soundButton').onclick=()=>{soundEnabled=!soundEnabled;sound(500);refresh();};
@@ -431,11 +461,18 @@
         c.moveTo(px+s*.18,py+s*.75);c.lineTo(px+s*.58,py+s*.16);c.lineTo(px+s*.83,py+s*.4);c.stroke();
       }
       if(t.fire>0){
-        c.fillStyle='rgba(255,105,44,.23)';c.fillRect(px,py,s,s);
-        c.shadowColor='#ff7c3b';c.shadowBlur=8;c.fillStyle='#ffb05c';
+        const friendly=t.fireOwner==='player';
+        c.fillStyle=friendly?'rgba(255,209,90,.21)':'rgba(255,71,44,.27)';
+        c.fillRect(px,py,s,s);
+        c.shadowColor=friendly?'#ffe397':'#ff643b';c.shadowBlur=9;
+        c.fillStyle=friendly?'#fff0a3':'#ff8a56';
         const sway=Math.sin(time*.006+x*2+y)*s*.09;
         c.beginPath();c.moveTo(px+s*.35,py+s*.78);c.quadraticCurveTo(px+s*.2+sway,py+s*.35,px+s*.57,py+s*.12);
         c.quadraticCurveTo(px+s*.48+sway,py+s*.53,px+s*.7,py+s*.72);c.closePath();c.fill();c.shadowBlur=0;
+        if(friendly){
+          c.fillStyle='#fff5c1';c.font='bold '+Math.round(s*.23)+'px sans-serif';
+          c.fillText('✦',px+s*.19,py+s*.21);
+        }
       }
       if(t.smoke>0){
         c.fillStyle='rgba(169,157,184,.23)';c.beginPath();c.arc(px+s*.4,py+s*.48,s*.3,0,Math.PI*2);c.arc(px+s*.65,py+s*.45,s*.24,0,Math.PI*2);c.fill();
@@ -477,6 +514,69 @@
     if(override?.feature==='player')sprite(col,row,'player',c,cell);
     if(!t.lit){c.fillStyle='rgba(5,13,20,.67)';c.fillRect(px,py,s+.7,s+.7);}
   }
+  function drawElementEffects(time){
+    // The effect event is generated by the engine's actual flood-fill.
+    // A wave travels through those exact cells, not a pre-recorded effect.
+    for(const event of game.effects||[]){
+      if(event.id<=lastEffectSeq)continue;
+      lastEffectSeq=event.id;
+      activeVfx.push({...event,started:time});
+    }
+    activeVfx=activeVfx.filter(e=>time-e.started<1600).slice(-6);
+    if(!activeVfx.length)return;
+    const colors={spark:'#a6f6ff',frost:'#c8f9ff',ember:'#ffa14a',
+      spread:'#ffad57',gust:'#bcffd5',smoke:'#d7c9ef',heal:'#a0ffd1'};
+    for(const effect of activeVfx){
+      const elapsed=time-effect.started;
+      const color=colors[effect.type]||'#f8dc98';
+      const graph=new Map(effect.points.map(p=>[p.x+','+p.y,p]));
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      // Show cast direction before the surface reaction begins.
+      if(elapsed<400&&effect.points.length){
+        const p=effect.points[0],a=effect.from;
+        const x1=(a.x-camX+.5)*scale,y1=(a.y-camY+.5)*scale,
+          x2=(p.x-camX+.5)*scale,y2=(p.y-camY+.5)*scale;
+        if(Math.max(Math.abs(x2-x1),Math.abs(y2-y1))<scale*9){
+          ctx.globalAlpha=Math.max(0,1-elapsed/400)*.75;
+          ctx.shadowColor=color;ctx.shadowBlur=13;ctx.strokeStyle=color;ctx.lineWidth=3;
+          ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+        }
+      }
+      for(const point of effect.points){
+        const delay=Math.min(point.step,29)*38;
+        const phase=elapsed-delay;
+        if(phase<0||phase>510)continue;
+        const tile=game.tile(point.x,point.y);
+        if(!tile?.seen)continue;
+        const col=point.x-camX,row=point.y-camY;
+        if(col<0||col>=VIEW_W||row<0||row>=VIEW_H)continue;
+        const alpha=Math.sin(Math.PI*Math.min(1,phase/510));
+        const px=col*scale,py=row*scale;
+        ctx.globalAlpha=alpha*.37;ctx.fillStyle=color;
+        ctx.fillRect(px+1,py+1,scale-2,scale-2);
+        ctx.globalAlpha=alpha*.95;
+        ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=12;
+        ctx.lineWidth=effect.type==='spark'?3.1:2.2;
+        const inset=scale*(.1+.2*(phase/510));
+        ctx.strokeRect(px+inset,py+inset,scale-2*inset,scale-2*inset);
+        if(effect.type==='spark'){
+          // Arc only between electrically connected preceding wave cells.
+          const previous=[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>
+            graph.get((point.x+dx)+','+(point.y+dy))).find(q=>q&&q.step===point.step-1);
+          if(previous){
+            const midx=(point.x-camX+.5)*scale,midy=(point.y-camY+.5)*scale;
+            const fromx=(previous.x-camX+.5)*scale,fromy=(previous.y-camY+.5)*scale;
+            ctx.beginPath();ctx.moveTo(fromx,fromy);
+            ctx.lineTo((fromx+midx)/2+Math.sin(time*.038+point.x)*scale*.1,
+              (fromy+midy)/2+Math.cos(time*.04+point.y)*scale*.1);
+            ctx.lineTo(midx,midy);ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+  }
   function draw(time){
     requestAnimationFrame(draw);
     if(time-lastFrame<28)return;
@@ -496,11 +596,24 @@
       ctx.strokeStyle=aim>=0?'#efbe75':'#82cdd8';ctx.lineWidth=2;
       ctx.strokeRect(sx+2,sy+2,s-4,s-4);
     }
+    if(quickSuggestion&&aim<0&&modal.hidden&&sheet.hidden){
+      const x=quickSuggestion.x-camX,y=quickSuggestion.y-camY;
+      if(x>=0&&x<VIEW_W&&y>=0&&y<VIEW_H){
+        ctx.save();
+        ctx.strokeStyle=ITEM[quickSuggestion.type].color;ctx.lineWidth=2;
+        ctx.shadowBlur=8;ctx.shadowColor=ITEM[quickSuggestion.type].color;
+        const pulse=.12+.035*Math.sin(time*.006);
+        const pad=scale*pulse;
+        ctx.strokeRect(x*s+pad,y*s+pad,s-2*pad,s-2*pad);
+        ctx.restore();
+      }
+    }
     if(aim>=0){
       ctx.fillStyle='rgba(211,165,83,.12)';ctx.fillRect(0,0,cw,ch);
       const stroke='#ffdc99';ctx.strokeStyle=stroke;ctx.lineWidth=2;
       ctx.strokeRect(px+2,py+2,s-4,s-4);
     }
+    drawElementEffects(time);
     if(time<flashUntil){
       ctx.strokeStyle='rgba(255,158,98,.75)';ctx.lineWidth=5;ctx.strokeRect(2,2,cw-4,ch-4);
     }
@@ -509,12 +622,12 @@
     ctx.fillStyle=vignette;ctx.fillRect(0,0,cw,ch);
   }
   function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
-  const returning=load();
+  const returning=load();lastEffectSeq=game.effectSeq||0;
   resize();window.addEventListener('resize',resize);
   if('ResizeObserver' in window)new ResizeObserver(resize).observe(board);
   window.addEventListener('pagehide',save);
   window.addEventListener('visibilitychange',()=>{if(document.hidden){stopAuto();save();}});
   refresh();showIntro(returning);requestAnimationFrame(draw);
   // Minimal debug surface for deterministic browser playchecks, never changes the game.
-  window.__deepWeaveTest={getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
+  window.__deepWeaveTest={getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
 })();
