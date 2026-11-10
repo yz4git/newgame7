@@ -85,6 +85,10 @@
     int(a,b){return a+Math.floor(this.rnd()*(b-a+1));}
     pick(a){return a[this.int(0,a.length-1)];}
     say(message){this.log.unshift({turn:this.turn,text:message});this.log.length=Math.min(this.log.length,12);}
+    // Count player turns before applying the action, so every message uses
+    // the same number as the visible turn counter. Bare advance() remains
+    // available for deterministic enemy-turn tests.
+    beginAction(){this.turn++;this._turnStarted=true;}
     inside(x,y){return x>=0&&x<W&&y>=0&&y<H;}
     tile(x,y){return this.inside(x,y)?this.map[y][x]:null;}
     walkable(x,y){const t=this.tile(x,y);return !!t&&t.t!=='wall';}
@@ -232,15 +236,27 @@
       else{ent.hp-=5;this.say(MONSTERS[ent.type].name+'が針の罠を踏んだ！');this.killIfNeeded(ent);}
     }
     checkDeath(){if(this.hp<=0){this.hp=0;this.alive=false;this.say('冒険はここで終わった。');}}
-    killIfNeeded(e){
+    killIfNeeded(e,quiet=false){
       if(e.hp>0)return;
       this.kills++;this.score+=MONSTERS[e.type].xp*25;
-      this.say(MONSTERS[e.type].name+'を倒した。');
+      if(!quiet)this.say(MONSTERS[e.type].name+'を倒した。');
       this.enemies=this.enemies.filter(m=>m.id!==e.id);
+      // Meaningful combat rewards keep elemental play viable on deep floors.
+      // Every fourth kill yields a single themed technique if there is room.
+      if(!quiet&&this.kills%4===0&&this.inventory.length<8){
+        const palette=this.themeIndex()===1?['spark','spark','frost','gust']:
+          this.themeIndex()===2?['ember','ember','frost','gust']:
+          this.themeIndex()===3?['ember','gust','spark','frost']:
+          ['spark','frost','ember','gust'];
+        const type=this.pick(palette);
+        this.inventory.push({type});
+        this.say('連鎖報酬：'+ITEM[type].name+'を入手！');
+      }
     }
-    damageEnemy(e,n,description){
-      e.hp-=n;if(description)this.say(description+' '+n+'ダメージ。');
-      this.killIfNeeded(e);
+    damageEnemy(e,n,description,quiet=false){
+      e.hp-=n;
+      if(description&&!quiet)this.say(description+' '+n+'ダメージ。');
+      this.killIfNeeded(e,quiet);
     }
     hit(e){
       const value=this.attack+this.int(0,2)-(e.type==='guard'?2:0);
@@ -252,23 +268,30 @@
       if(!Number.isInteger(dx)||!Number.isInteger(dy)||Math.max(Math.abs(dx),Math.abs(dy))!==1)return {ok:false,reason:'invalid'};
       const x=this.player.x+dx,y=this.player.y+dy;
       if(!this.walkable(x,y)||this.blockedDiagonal(this.player.x,this.player.y,x,y))return {ok:false,reason:'wall'};
+      this.beginAction();
       const enemy=this.enemyAt(x,y);
       if(enemy){this.hit(enemy);return {ok:true,combat:true};}
       this.player.x=x;this.player.y=y;
       const trap=this.trapAt(x,y);if(trap)this.triggerTrap(this);
       if(!this.alive)return {ok:true,ended:true};
       this.pickUp();
-      if(x===this.stairs.x&&y===this.stairs.y){this.descend();return {ok:true,descended:true};}
+      if(x===this.stairs.x&&y===this.stairs.y){this._turnStarted=false;this.descend();return {ok:true,descended:true};}
       this.advance();return {ok:true};
     }
-    wait(){if(!this.alive||this.won)return false;this.say('一息ついた。');this.advance();return true;}
+    wait(){if(!this.alive||this.won)return false;this.beginAction();this.say('一息ついた。');this.advance();return true;}
     descend(){
       this.score+=this.floor*100;
       if(this.floor>=MAX_FLOOR){
         this.won=true;this.say('星の核を取り戻した！ 深淵を踏破した。');return;
       }
-      this.floor++;this.hp=Math.min(this.maxHp,this.hp+6);this.generate();
-      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが6回復。');
+      this.floor++;this.hp=Math.min(this.maxHp,this.hp+7);this.generate();
+      const gifts=['spark','frost','ember','gust'];
+      const reward=gifts[(this.floor-2)%gifts.length];
+      if(this.inventory.length<8){
+        this.inventory.push({type:reward});
+        this.say('階層報酬：'+ITEM[reward].name+'を補充！');
+      }
+      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが7回復。');
     }
     pathTo(x,y,adjacentToEnemy){
       x=Number(x);y=Number(y);
@@ -308,13 +331,18 @@
       return this.inside(x,y)&&dist(this.player,{x,y})<=range&&this.los(this.player.x,this.player.y,x,y);
     }
     // The same ordered flood-fill drives damage and its visible chain animation.
-    conductor(x,y,limit=140){
-      const t=this.tile(x,y);if(!t||!['water','ice'].includes(t.t))return [];
+    conductor(x,y){
+      const tile=this.tile(x,y);
+      if(!tile||!['water','ice'].includes(tile.t))return [];
       const q=[{x,y,step:0}],seen=new Set([key(x,y)]);
-      for(let i=0;i<q.length&&q.length<limit;i++)for(const [dx,dy] of DIRS.slice(0,4)){
-        const x=q[i].x+dx,y=q[i].y+dy,k=key(x,y),t=this.tile(x,y);
-        if(!t||!['water','ice'].includes(t.t)||seen.has(k))continue;
-        seen.add(k);q.push({x,y,step:q[i].step+1});if(q.length>=limit)break;
+      // The entire connected component is the rule. No hidden 140-cell cap:
+      // the 27x29 map itself provides a bounded maximum.
+      for(let i=0;i<q.length;i++){
+        for(const [dx,dy] of DIRS.slice(0,4)){
+          const nx=q[i].x+dx,ny=q[i].y+dy,t=this.tile(nx,ny),k=key(nx,ny);
+          if(!t||!['water','ice'].includes(t.t)||seen.has(k))continue;
+          seen.add(k);q.push({x:nx,y:ny,step:q[i].step+1});
+        }
       }
       return q;
     }
@@ -322,60 +350,69 @@
       this.effectSeq=(this.effectSeq||0)+1;
       if(!Array.isArray(this.effects))this.effects=[];
       this.effects.push({id:this.effectSeq,type,from:{x:from.x,y:from.y},
-        points:points.slice(0,145).map(p=>({x:p.x,y:p.y,step:p.step||0}))});
+        points:points.map(p=>({x:p.x,y:p.y,step:p.step||0}))});
       this.effects=this.effects.slice(-5);
     }
     suggestSkill(){
       if(!this.alive||this.won)return null;
       const options=[],seenGroups=new Set();
+      // Automatic selection may only use enemies that the player can see now.
+      // Physical propagation can reach beyond vision, but must never
+      // telepathically reveal or target enemies in the unexplored map.
       const visible=this.enemies.filter(e=>e.hp>0&&this.tile(e.x,e.y)?.lit);
       const consider=(index,p,score,name,reason)=>{
         const type=this.inventory[index].type,range=type==='gust'?5:6;
-        if(score>0&&this.validTarget(p.x,p.y,range))
+        if(score>0&&this.tile(p.x,p.y)?.lit&&this.validTarget(p.x,p.y,range))
           options.push({index,x:p.x,y:p.y,score,name,reason,type});
       };
       for(let index=0;index<this.inventory.length;index++){
         const type=this.inventory[index].type;
-        if(type==='heal'&&this.maxHp-this.hp>=10){
-          consider(index,this.player,this.hp<=this.maxHp-16?100:40,'回復','HPを回復する');
-        }
+        if(type==='heal'&&this.maxHp-this.hp>=10)
+          consider(index,this.player,this.hp<=this.maxHp-16?94:36,'回復','HPを回復');
         if(type==='spark'){
-          for(const e of visible)consider(index,e,18+(this.tile(e.x,e.y).t==='water'?15:0),'雷撃','敵へ雷を放つ');
-          for(const e of this.enemies){
-            if(e.hp<=0||!['water','ice'].includes(this.tile(e.x,e.y)?.t))continue;
-            const group=this.conductor(e.x,e.y);
-            const id=group.map(p=>key(p.x,p.y)).sort()[0];
-            if(seenGroups.has(id))continue;seenGroups.add(id);
-            const targets=this.enemies.filter(enemy=>enemy.hp>0&&group.some(p=>p.x===enemy.x&&p.y===enemy.y));
+          for(const e of visible){
+            const t=this.tile(e.x,e.y);
+            consider(index,e,18+(['water','ice'].includes(t.t)?12:0),
+              '雷撃','敵に雷を当てる');
+            if(!['water','ice'].includes(t.t))continue;
+            const group=this.conductor(e.x,e.y),id=key(group[0].x,group[0].y);
+            // IDs cannot rely on BFS origin. Cache the whole component.
+            if(seenGroups.has(key(e.x,e.y)))continue;
+            for(const p of group)seenGroups.add(key(p.x,p.y));
+            const occupied=new Set(group.map(p=>key(p.x,p.y)));
+            const seenTargets=visible.filter(enemy=>occupied.has(key(enemy.x,enemy.y)));
             const launch=group.filter(p=>this.tile(p.x,p.y)?.lit&&this.validTarget(p.x,p.y,6))
               .sort((a,b)=>dist(a,this.player)-dist(b,this.player))[0];
-            if(launch&&targets.length)
-              consider(index,launch,28+targets.length*12+Math.min(15,group.length),'雷連鎖','水脈を広域伝播');
+            if(launch&&seenTargets.length)
+              consider(index,launch,26+seenTargets.length*14+Math.min(12,group.length/8),
+                '雷連鎖','見えている敵へ水脈から雷');
           }
         }
         if(type==='frost')for(const e of visible){
-          const crowd=this.enemies.filter(q=>q.hp>0&&dist(q,e)<=2).length;
-          const water=this.conductor(e.x,e.y,60).length;
-          consider(index,e,13+crowd*9+Math.min(15,water),'氷結','敵と水場を凍らせる');
+          const crowd=visible.filter(q=>dist(q,e)<=2).length;
+          const water=['water','ice'].includes(this.tile(e.x,e.y).t)?
+            this.conductor(e.x,e.y).length:0;
+          consider(index,e,12+crowd*11+Math.min(12,water/5),
+            '氷結','敵と水脈を凍らせる');
         }
         if(type==='ember')for(const e of visible){
           let fuel=0,crowd=0;
           for(let y=e.y-1;y<=e.y+1;y++)for(let x=e.x-1;x<=e.x+1;x++){
-            const t=this.tile(x,y);if(t&&['oil','bush'].includes(t.t))fuel++;
-            if(this.enemyAt(x,y))crowd++;
+            const tile=this.tile(x,y);
+            if(tile&&['oil','bush'].includes(tile.t))fuel++;
+            if(visible.some(q=>q.x===x&&q.y===y))crowd++;
           }
-          if(fuel>0)consider(index,e,14+fuel*3+crowd*5,'延焼','火を属性床に広げる');
+          if(fuel>0)consider(index,e,13+fuel*3+crowd*5,'延焼','油や草に着火する');
         }
         if(type==='gust')for(const e of visible){
           const dx=Math.sign(e.x-this.player.x),dy=Math.sign(e.y-this.player.y);
           const next=this.tile(e.x+dx,e.y+dy);
           const crash=!next||next.t==='wall'||!!this.enemyAt(e.x+dx,e.y+dy);
           const hazard=this.trapAt(e.x+dx,e.y+dy)||next?.fire>0;
-          consider(index,e,10+(crash?14:0)+(hazard?24:0),'突風','地形へ吹き飛ばす');
+          consider(index,e,10+(crash?14:0)+(hazard?24:0),'突風','敵を障害物へ押す');
         }
-        if(type==='smoke'&&this.enemies.some(e=>e.cast==='arrow'&&this.tile(e.x,e.y)?.lit)){
-          consider(index,this.player,35,'煙幕','敵の射線を遮る');
-        }
+        if(type==='smoke'&&visible.some(e=>e.cast==='arrow'))
+          consider(index,this.player,35,'煙幕','射線を遮る');
       }
       options.sort((a,b)=>b.score-a.score||a.index-b.index);
       return options[0]||null;
@@ -385,42 +422,70 @@
       const item=this.inventory[index];if(!item)return {ok:false,reason:'missing'};
       if(item.type==='heal'){
         if(this.hp>=this.maxHp)return {ok:false,reason:'full'};
+        this.beginAction();
         this.hp=Math.min(this.maxHp,this.hp+12);
         this.emitEffect('heal',this.player,[{...this.player,step:0}]);
         this.say('治癒の薬で傷を癒した。');
       }else{
         if(!this.validTarget(x,y,item.type==='gust'?5:6))return {ok:false,reason:'range'};
+        if(item.type==='gust'&&!this.enemyAt(x,y))return {ok:false,reason:'target'};
+        if(item.type==='ember'){
+          let burnable=false;
+          for(let yy=y-1;yy<=y+1;yy++)for(let xx=x-1;xx<=x+1;xx++){
+            const t=this.tile(xx,yy);
+            if(t&&t.t!=='wall'&&t.t!=='water'&&t.t!=='ice')burnable=true;
+          }
+          if(!burnable)return {ok:false,reason:'target'};
+        }
+        this.beginAction();
         const source={...this.player};
         if(item.type==='spark'){
           const waves=this.conductor(x,y);
           const affected=waves.length?waves:[{x,y,step:0}];
-          const hits=new Set();
-          for(const p of affected){const e=this.enemyAt(p.x,p.y);if(e)hits.add(e);}
-          const direct=this.enemyAt(x,y);if(direct)hits.add(direct);
-          this.emitEffect('spark',source,affected);
-          for(const e of hits){
-            e.stun=2;this.damageEnemy(e,8,'雷が'+MONSTERS[e.type].name+'を撃った。');
+          const hits=new Map();
+          for(const p of affected){
+            const e=this.enemyAt(p.x,p.y);
+            if(e)hits.set(e,p.step);
           }
-          this.say(waves.length?'雷が水脈を'+waves.length+'マス伝播！':'雷光が敵を貫いた。');
+          const direct=this.enemyAt(x,y);
+          if(direct&&!hits.has(direct))hits.set(direct,0);
+          this.emitEffect('spark',source,affected);
+          let visibleHits=0,visibleDamage=0,visibleKills=0;
+          for(const [e,step] of hits){
+            const lit=!!this.tile(e.x,e.y)?.lit;
+            // Connected water conducts anywhere. Distance reduces damage
+            // and stun; water spirits are weak to lightning, stone guards resist.
+            const falloff=Math.floor(step/10);
+            const damage=Math.max(4,9-falloff)+(e.type==='eel'?2:0)-(e.type==='guard'?3:0);
+            const dealt=Math.max(1,damage);
+            e.stun=Math.max(e.stun,step<=12?2:1);
+            const beforeKills=this.kills;
+            this.damageEnemy(e,dealt,'雷が'+MONSTERS[e.type].name+'を撃った。',!lit);
+            if(lit){visibleHits++;visibleDamage+=dealt;visibleKills+=this.kills-beforeKills;}
+          }
+          this.say('雷連鎖：'+affected.length+'マス伝播 / 目視'+visibleHits+
+            '体に'+visibleDamage+'ダメージ'+(visibleKills?' / '+visibleKills+'体撃破':''));
+          
         }
         if(item.type==='frost'){
-          const network=this.conductor(x,y,100),area=new Map();
+          const network=this.conductor(x,y),area=new Map();
           for(let yy=y-2;yy<=y+2;yy++)for(let xx=x-2;xx<=x+2;xx++){
             const t=this.tile(xx,yy);
             if(!t||dist({x,y},{x:xx,y:yy})>2)continue;
             area.set(key(xx,yy),{x:xx,y:yy,step:dist({x,y},{x:xx,y:yy})});
           }
           for(const p of network)area.set(key(p.x,p.y),p);
-          let frozen=0;
+          let frozen=0,stopped=0;
           for(const p of area.values()){
             const t=this.tile(p.x,p.y);if(!t||t.t==='wall')continue;
             if(t.t==='water'){t.t='ice';frozen++;}
             if(t.fire){t.fire=0;t.fireOwner=null;}
             const e=this.enemyAt(p.x,p.y);
-            if(e){e.stun=Math.max(e.stun,2);e.cast=null;e.windup=false;}
+            if(e){e.stun=Math.max(e.stun,2);e.cast=null;e.windup=false;
+              if(this.tile(e.x,e.y)?.lit)stopped++;}
           }
           this.emitEffect('frost',source,[...area.values()]);
-          this.say('氷の波が'+frozen+'マスを凍らせた。');
+          this.say('氷結：'+frozen+'マスを変化 / 目視'+stopped+'体を足止め');
         }
         if(item.type==='ember'){
           const flame=[];
@@ -431,9 +496,9 @@
             t.fireOwner=hostile?'enemy':'player';
             flame.push({x:xx,y:yy,step:dist({x,y},{x:xx,y:yy})});
           }
-          if(!flame.length)return {ok:false,reason:'target'};
+          // Prevalidated above, before committing the player turn.
           this.emitEffect('ember',source,flame);
-          this.say('自分の炎は無害。属性床へ炎が連鎖する！');
+          this.say('延焼：'+flame.length+'マスに着火。自分の炎は無害！');
         }
         if(item.type==='gust'){
           const e=this.enemyAt(x,y);if(!e)return {ok:false,reason:'target'};
@@ -484,7 +549,8 @@
     }
     advance(){
       if(!this.alive||this.won)return;
-      this.turn++;
+      if(!this._turnStarted)this.turn++;
+      this._turnStarted=false;
       // Environmental hazards evolve at most one tile each turn per source.
       const ignite=[];
       for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
@@ -556,7 +622,9 @@
       const t=this.tile(x,y);
       if(!t.seen)return {name:'未探索',desc:'そこには何があるだろう。'};
       const e=t.lit?this.enemyAt(x,y):null,i=t.lit?this.itemAt(x,y):null,trap=this.trapAt(x,y);
-      if(e){const d=MONSTERS[e.type];return {name:d.name,desc:'HP '+e.hp+'/'+e.maxHp+' · 攻撃'+d.atk+(e.windup?' · 次のターンに強攻撃！':e.cast==='arrow'?' · 次のターンに射撃！':e.cast==='fire'?' · 次のターンに火術！':'')};}
+      if(e){const d=MONSTERS[e.type];
+        const resist=e.type==='guard'?' · 雷に強い':e.type==='eel'?' · 雷に弱い':e.type==='witch'?' · 炎に強い':'';
+        return {name:d.name,desc:'HP '+e.hp+'/'+e.maxHp+' · 攻撃'+d.atk+resist+(e.windup?' · 次のターンに強攻撃！':e.cast==='arrow'?' · 次のターンに射撃！':e.cast==='fire'?' · 次のターンに火術！':'')};}
       if(i)return {name:ITEM[i.type].name,desc:ITEM[i.type].desc};
       if(x===this.stairs.x&&y===this.stairs.y)return {name:this.floor===MAX_FLOOR?'星の核':'下り階段',desc:'踏むと次の階層へ進む。'};
       if(trap&&trap.known)return {name:'針の罠',desc:'発見済み。踏むと5ダメージ。敵を押し込むと有利。'};

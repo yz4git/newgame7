@@ -10,7 +10,7 @@
   let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
   let soundEnabled=false,audioContext=null;
   let particles=[],armedTrap=null,flashUntil=0,quickSuggestion=null;
-  let lastEffectSeq=0,activeVfx=[];
+  let lastEffectSeq=0,activeVfx=[],quickPreview=new Set();
   function load(){
     try{const raw=localStorage.getItem(STORE);if(raw){game=Game.restore(raw);return true;}}catch(e){console.warn('Save unavailable',e);}
     game=new Game();return false;
@@ -61,6 +61,12 @@
     renderBattleLog();
     bag.textContent=game.inventory.length+'/8';
     quickSuggestion=game.suggestSkill();
+    quickPreview=new Set();
+    if(quickSuggestion&&quickSuggestion.type==='spark'){
+      for(const point of game.conductor(quickSuggestion.x,quickSuggestion.y)){
+        if(game.tile(point.x,point.y)?.lit)quickPreview.add(point.x+','+point.y);
+      }
+    }
     const quick=$('skillButton');
     quick.disabled=!quickSuggestion||aim>=0||!s.alive||s.won;
     quick.classList.toggle('ready',!quick.disabled);
@@ -68,7 +74,8 @@
     $('skillGlyph').textContent=quickType?quickType.glyph:'✦';
     $('skillGlyph').style.color=quickType?quickType.color:'';
     $('skillLabel').textContent=quickSuggestion?quickSuggestion.name:'属性技';
-    $('skillInfo').textContent=quickSuggestion?'1タップ発動':'敵を発見で発動';
+    $('skillInfo').textContent=quickSuggestion?
+      (quickPreview.size>1?'見える連鎖 '+quickPreview.size+'マス':'1タップ発動'):'敵を発見で発動';
     quick.setAttribute('aria-label',quickSuggestion?'属性技を発動：'+quickSuggestion.name:'発動可能な属性技はありません');
     const warning=game.enemies.find(e=>game.tile(e.x,e.y)?.lit&&(e.cast||e.windup));
     hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
@@ -87,7 +94,7 @@
   }
   function startNew(){
     stopAuto();aim=-1;selection=null;armedTrap=null;
-    game=new Game();lastEffectSeq=0;activeVfx=[];quickSuggestion=null;
+    game=new Game();lastEffectSeq=0;activeVfx=[];quickPreview=new Set();quickSuggestion=null;
     clearSave();save();hideSheet();hideModal();refresh();showToast('新たな探索が始まった');
   }
   function hideModal(){modal.hidden=true;modalMode='';}
@@ -117,9 +124,10 @@
       '<p><b>タップ</b>：床なら移動。離れた床は安全な範囲で経路をたどる。敵なら接近・攻撃。階段に乗ると次の層。</p>'+
       '<p><b>スワイプ</b>：8方向へ1歩。隣の敵に向かってスワイプすると近接攻撃。危険な敵のそばではこちらが確実。</p>'+
       '<p><b>長押し</b>：敵・地形・道具の情報。長押ししてドラッグすると経路指定。</p>'+
-      '<p><b>✦ 属性技</b>：敵や地形に合わせて最適な技を自動提案。光っている時に1タップで発動。アイテムを1個消費する。</p>'+
+      '<p><b>✦ 属性技</b>：現在見えている敵だけをもとに技と目標を提案。未発見の敵を自動検知しない。光ったら1タップ発動・道具1個消費。</p>'+
       '<p><b>道具</b>：鞄から道具を選んで好きな場所に使うこともできる。薬はすぐ使用。</p>'+
-      '<p><b>連鎖</b>：水・氷は雷が広域伝播、水は氷に変化、油・草は炎が連続延焼、風で敵を罠や炎へ誘導。</p>'+
+      '<p><b>連鎖</b>：水・氷の接続全体を雷が走る。起点から遠いほど弱まり、石の衛兵は雷に強く、水精は弱い。氷結・延焼・突風も活用。</p>'+
+      '<p><b>技の補充</b>：4体倒すごとに属性技を1つ、階層移動でも1つ補充（道具袋に空きがある場合）。</p>'+
       '<p><b>自分の技は安全</b>：自分の火種から生じた炎ではダメージを受けない。敵が作った炎は危険。</p>'+
       '<p><b>ターン</b>：移動、攻撃、道具使用、待機でのみ敵が動く。長押しやメニューでは進まない。死亡で探索終了。</p>',
       [{label:'図鑑を見る',click:()=>showLegend('terrain')},
@@ -135,7 +143,7 @@
     {name:'岩壁',desc:'通れない。敵の視線や飛び道具も遮る。',tile:'wall'},
     {name:'石床',desc:'歩ける通常の床。',tile:'floor'},
     {name:'未探索',desc:'まだ見えていない暗闇。近づいて明らかにしよう。',tile:'floor',unseen:true},
-    {name:'水脈',desc:'雷が隣接した水・氷へ何マスも伝播。敵が離れていても感電。',tile:'water'},
+    {name:'水脈',desc:'接続している水・氷の全域に雷が伝播。遠いほどダメージと足止めが弱まる。',tile:'water'},
     {name:'氷床',desc:'水を凍らせた床。雷も水と氷を連鎖して流れる。',tile:'ice'},
     {name:'油溜まり',desc:'暗い紫の床。炎に触れると燃え広がる。',tile:'oil'},
     {name:'茂み',desc:'緑の草。油と同じく炎が燃え移る。',tile:'bush'},
@@ -476,6 +484,37 @@
         c.strokeStyle='rgba(232,255,255,.65)';c.lineWidth=1.5;c.beginPath();
         c.moveTo(px+s*.18,py+s*.75);c.lineTo(px+s*.58,py+s*.16);c.lineTo(px+s*.83,py+s*.4);c.stroke();
       }
+      // Distinguish elemental territories by their borders, not by
+      // repeating the same isolated tile sprite. The bright stroke shows
+      // where chains change material, while fine patterns retain depth.
+      if(!override&&['water','oil','bush','ice'].includes(t.t)){
+        const materialColor={
+          water:'rgba(110,219,246,.74)',ice:'rgba(240,255,255,.85)',
+          oil:'rgba(190,134,225,.73)',bush:'rgba(156,222,116,.66)'
+        }[t.t];
+        c.strokeStyle=materialColor;c.lineWidth=Math.max(1.4,s*.043);
+        const top=game.tile(x,y-1),left=game.tile(x-1,y);
+        const right=game.tile(x+1,y),bottom=game.tile(x,y+1);
+        c.beginPath();
+        if(top?.t!==t.t){c.moveTo(px+1,py+1.5);c.lineTo(px+s-1,py+1.5);}
+        if(left?.t!==t.t){c.moveTo(px+1.5,py+1);c.lineTo(px+1.5,py+s-1);}
+        if(right?.t!==t.t){c.moveTo(px+s-1.5,py+1);c.lineTo(px+s-1.5,py+s-1);}
+        if(bottom?.t!==t.t){c.moveTo(px+1,py+s-1.5);c.lineTo(px+s-1,py+s-1.5);}
+        c.stroke();
+        c.fillStyle=materialColor;
+        if(t.t==='water'){
+          const f=.18+.08*Math.sin(time*.002+v*12);
+          c.globalAlpha=f;c.fillRect(px+s*(.16+.19*v),py+s*.67,s*.34,1.3);c.globalAlpha=1;
+        }else if(t.t==='oil'){
+          c.globalAlpha=.26;c.fillRect(px+s*.24,py+s*.28,s*(.12+.18*v),1.1);c.globalAlpha=1;
+        }else if(t.t==='bush'){
+          c.globalAlpha=.55;
+          c.fillRect(px+s*.18,py+s*.63,s*.09,s*.15);c.fillRect(px+s*.75,py+s*.41,s*.07,s*.18);
+          c.globalAlpha=1;
+        }else{
+          c.globalAlpha=.4;c.fillRect(px+s*.26,py+s*.2,s*.35,1.3);c.globalAlpha=1;
+        }
+      }
       if(t.fire>0){
         const friendly=t.fireOwner==='player';
         c.fillStyle=friendly?'rgba(255,209,90,.21)':'rgba(255,71,44,.27)';
@@ -536,9 +575,11 @@
     for(const event of game.effects||[]){
       if(event.id<=lastEffectSeq)continue;
       lastEffectSeq=event.id;
-      activeVfx.push({...event,started:time});
+      const maxStep=Math.max(0,...event.points.map(p=>p.step||0));
+      const duration=Math.min(2100,Math.max(960,maxStep*26+520));
+      activeVfx.push({...event,started:time,maxStep,duration});
     }
-    activeVfx=activeVfx.filter(e=>time-e.started<1600).slice(-6);
+    activeVfx=activeVfx.filter(e=>time-e.started<e.duration).slice(-6);
     if(!activeVfx.length)return;
     const colors={spark:'#a6f6ff',frost:'#c8f9ff',ember:'#ffa14a',
       spread:'#ffad57',gust:'#bcffd5',smoke:'#d7c9ef',heal:'#a0ffd1'};
@@ -560,21 +601,21 @@
         }
       }
       for(const point of effect.points){
-        const delay=Math.min(point.step,29)*38;
+        const delay=effect.maxStep>0?(point.step/effect.maxStep)*(effect.duration-470):0;
         const phase=elapsed-delay;
-        if(phase<0||phase>510)continue;
+        if(phase<0||phase>470)continue;
         const tile=game.tile(point.x,point.y);
         if(!tile?.seen)continue;
         const col=point.x-camX,row=point.y-camY;
         if(col<0||col>=VIEW_W||row<0||row>=VIEW_H)continue;
-        const alpha=Math.sin(Math.PI*Math.min(1,phase/510));
+        const alpha=Math.sin(Math.PI*Math.min(1,phase/470));
         const px=col*scale,py=row*scale;
         ctx.globalAlpha=alpha*.37;ctx.fillStyle=color;
         ctx.fillRect(px+1,py+1,scale-2,scale-2);
         ctx.globalAlpha=alpha*.95;
         ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=12;
         ctx.lineWidth=effect.type==='spark'?3.1:2.2;
-        const inset=scale*(.1+.2*(phase/510));
+        const inset=scale*(.1+.2*(phase/470));
         ctx.strokeRect(px+inset,py+inset,scale-2*inset,scale-2*inset);
         if(effect.type==='spark'){
           // Arc only between electrically connected preceding wave cells.
@@ -603,6 +644,18 @@
     const r=board.getBoundingClientRect(),cw=r.width,ch=r.height,s=scale;
     ctx.fillStyle='#08131a';ctx.fillRect(0,0,cw,ch);
     for(let y=0;y<VIEW_H;y++)for(let x=0;x<VIEW_W;x++)drawTile(camX+x,camY+y,x,y,time);
+    // Preview only the currently visible conductive cells of the proposed
+    // quick cast. Nothing outside player vision is highlighted.
+    if(quickPreview.size&&aim<0&&modal.hidden&&sheet.hidden){
+      ctx.save();ctx.strokeStyle='rgba(181,247,255,.56)';ctx.lineWidth=1.2;
+      for(let y=0;y<VIEW_H;y++)for(let x=0;x<VIEW_W;x++){
+        const xx=camX+x,yy=camY+y;
+        if(!quickPreview.has(xx+','+yy))continue;
+        const tile=game.tile(xx,yy);if(!tile?.lit)continue;
+        ctx.strokeRect(x*s+4,y*s+4,s-8,s-8);
+      }
+      ctx.restore();
+    }
     const px=(game.player.x-camX)*s,py=(game.player.y-camY)*s;
     // A subtle focus ring signals the player even under low light.
     ctx.strokeStyle='rgba(144,230,240,.62)';ctx.lineWidth=1.3;ctx.strokeRect(px+1,py+1,s-2,s-2);
@@ -645,5 +698,5 @@
   window.addEventListener('visibilitychange',()=>{if(document.hidden){stopAuto();save();}});
   refresh();showIntro(returning);requestAnimationFrame(draw);
   // Minimal debug surface for deterministic browser playchecks, never changes the game.
-  window.__deepWeaveTest={getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
+  window.__deepWeaveTest={getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];quickPreview=new Set();hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
 })();

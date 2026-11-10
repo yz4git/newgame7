@@ -189,6 +189,11 @@ async function run(){
       // Elemental quick-skill is a single visible touch button and consumes
       // exactly one action and one inventory item. The actual propagated
       // engine wave must also be visible on the Canvas.
+      // Quick skill must never target opponents hidden in fog.
+      await page.evaluate(()=>window.__deepWeaveTest.seedRun(2));
+      assert.equal(await page.evaluate(()=>window.__deepWeaveTest.getQuick()),null,
+        'quick skill must not detect hidden enemies');
+      assert.equal(await page.locator('#skillButton').isDisabled(),true);
       await page.evaluate(()=>window.__deepWeaveTest.seedRun(998));
       const recommended=await page.evaluate(()=>window.__deepWeaveTest.getQuick());
       assert.ok(recommended&&recommended.index>=0,'no elemental technique recommended');
@@ -207,6 +212,11 @@ async function run(){
       assert.equal(elemental.state.inventory,original.inventory-1);
       assert.ok(elemental.visual.latest>0&&elemental.visual.active>0,
         'no animated elemental propagation: '+JSON.stringify(elemental));
+      const combatText=await page.locator('#battleLogLines').innerText();
+      assert.match(combatText,/T1/,'action log turn should match HUD turn');
+      assert.match(combatText,/雷連鎖.*マス伝播/,'summary must explain chain size');
+      assert.ok(!combatText.includes('T0')||!combatText.includes('雷連鎖'),
+        'the cast may not appear under turn zero');
       await page.screenshot({path:'playcheck-output/'+name+'-elemental.png',fullPage:true});
       assert.deepEqual(errors,[],'browser errors');
       // Different release only at a new launch: stale shell redirects once

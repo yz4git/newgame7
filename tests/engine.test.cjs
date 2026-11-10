@@ -39,7 +39,7 @@ for(const [xx,yy] of points){h.tile(xx,yy).t='water';}
 h.enemies.push({id:900,type:'guard',x:points[0][0],y:points[0][1],hp:40,maxHp:40,stun:0,windup:false,alert:false});
 h.enemies.push({id:901,type:'guard',x:points[1][0],y:points[1][1],hp:40,maxHp:40,stun:0,windup:false,alert:false});
 assert.equal(h.useItem(1,points[0][0],points[0][1]).ok,true);
-assert.ok(h.enemies.every(e=>e.hp<=32),'water shock must hit connected enemies');
+assert.ok(h.enemies.every(e=>e.hp<=35),'guard resists but receives connected lightning');
 assert.equal(h.inventory.length,3);
 const w=new Game(108);
 for(let floor=1;floor<MAX_FLOOR;floor++){w.descend();assert.equal(w.floor,floor+1);}
@@ -147,7 +147,7 @@ assert.ok(own.effects.some(e=>e.type==='ember'));
 for(let i=0;i<4;i++)own.advance();
 assert.equal(own.hp,ownStart,'propagated friendly fire must stay harmless');
 assert.ok(own.effects.some(e=>e.type==='spread'),'spread animation event missing');
-assert.ok(own.effects.every(e=>e.points.length<151));
+assert.ok(own.effects.every(e=>e.points.length<=W*H),'VFX may cover the entire map');
 const friendly=Array.from({length:7},(_,y)=>Array.from({length:8},(_,x)=>
   own.tile(x+7,y+7))).flat().filter(t=>t.fire>0);
 assert.ok(friendly.length>0,'fire should have propagated over oil terrain');
@@ -174,7 +174,7 @@ z.enemies=[{id:960,type:'guard',x:16,y:10,hp:30,maxHp:30,
   cast:null,stun:0,windup:false,alert:false}];
 const beforeLightning=z.enemies[0].hp;
 assert.equal(z.useItem(1,11,10).ok,true);
-assert.equal(z.enemies[0].hp,beforeLightning-8,'distant enemy should take chained damage');
+assert.equal(z.enemies[0].hp,beforeLightning-6,'stone guardian should resist chained lightning');
 const electric=z.effects.find(e=>e.type==='spark');
 assert.ok(electric&&electric.points.length>=6,'electric wave tiles missing');
 assert.equal(electric.points.find(p=>p.x===16&&p.y===10).step,5);
@@ -209,5 +209,91 @@ assert.ok(upgradedWalk.filter(t=>['water','oil','bush','ice'].includes(t.t)).len
 
 console.log('PASS: 100 elemental floors ('+(average*100).toFixed(1)+
   '%), friendly/enemy fire ownership, propagated VFX, and one-tap skill.');
+
+
+// Review v0.9: no omniscient one-button spells.
+let hiddenOnly=0;
+for(let seed=1;seed<=130;seed++){
+  const s=new Game(seed);
+  const visible=s.enemies.filter(e=>s.tile(e.x,e.y).lit);
+  const proposed=s.suggestSkill();
+  if(!visible.length){
+    hiddenOnly++;
+    assert.ok(!proposed||proposed.type==='heal',
+      'auto-target must not detect hidden enemies in seed '+seed);
+  }
+}
+assert.ok(hiddenOnly>20,'test must exercise hidden enemy cases');
+const concealed=new Game(2);
+assert.equal(concealed.enemies.filter(e=>concealed.tile(e.x,e.y).lit).length,0);
+assert.equal(concealed.suggestSkill(),null,
+  'unseen opponents must not enable offensive quick-cast');
+const linked=concealed.conductor(10,11);
+assert.ok(linked.length>140,'regression must cover the old 140-cell limit');
+assert.equal(linked.length,199);
+assert.equal(concealed.useItem(1,10,11).ok,true,'manual cast can reach a seen conductor');
+const wave=concealed.effects.find(e=>e.type==='spark');
+assert.equal(wave.points.length,linked.length,'VFX must represent every affected tile');
+assert.equal(concealed.log[0].turn,concealed.turn,'spell log and turn counter disagree');
+assert.ok(!concealed.log.some(e=>e.text.includes('を倒した')),
+  'hidden victims must not leak into the player log');
+
+// A visible target enables one-tap lightning, and all logged action
+// effects have the completed turn number, including wait and traps.
+const known=new Game(998),choice=known.suggestSkill();
+assert.ok(choice&&choice.type==='spark');
+const quickTurnBefore=known.turn;
+assert.equal(known.useItem(choice.index,choice.x,choice.y).ok,true);
+assert.equal(known.turn,quickTurnBefore+1);
+assert.equal(known.log[0].turn,known.turn);
+assert.match(known.log[0].text,/雷連鎖.*目視.*ダメージ/);
+assert.ok(known.effects.find(e=>e.type==='spark').points.length>1);
+const waited=new Game(430);
+waited.wait();
+assert.equal(waited.log[0].turn,waited.turn);
+const stepped=new Game(439);stepped.enemies=[];stepped.items=[];stepped.traps=[];
+stepped.player={x:10,y:10};
+stepped.tile(10,10).t='floor';stepped.tile(11,10).t='floor';
+stepped.traps=[{id:1,x:11,y:10,known:true,used:false}];
+stepped.move(1,0);
+assert.equal(stepped.turn,1);
+assert.equal(stepped.log[0].turn,stepped.turn,'trap log uses player action turn');
+
+// Bonuses persist into later levels without unlimited items.
+const refill=new Game(460);
+const initial=refill.inventory.length;refill.descend();
+assert.equal(refill.floor,2);
+assert.equal(refill.inventory.length,initial+1);
+assert.ok(refill.log.some(e=>e.text.includes('階層報酬')));
+const bonus=new Game(461);bonus.enemies=[];bonus.items=[];bonus.traps=[];
+for(let i=0;i<4;i++){
+  const dead={id:850+i,type:'runner',x:8+i,y:8,hp:1,maxHp:6};
+  bonus.enemies.push(dead);
+  bonus.damageEnemy(dead,10,'試験',false);
+}
+assert.equal(bonus.kills,4);
+assert.equal(bonus.inventory.length,5,'four kills should award one technique');
+assert.ok(bonus.inventory.every(it=>['heal','spark','frost','ember','gust','smoke'].includes(it.type)));
+const silent=new Game(462);silent.enemies=[];silent.kills=3;silent.items=[];silent.traps=[];
+const victim={id:881,type:'runner',x:12,y:12,hp:1,maxHp:6};
+silent.enemies=[victim];
+silent.damageEnemy(victim,10,'hidden test',true);
+assert.equal(silent.inventory.length,4,'unseen kill must not telegraph a reward');
+assert.ok(!silent.log.some(e=>e.text.includes('hidden test')||e.text.includes('を倒した')));
+
+// The distance and enemy types now influence shock damage and stun.
+const resist=new Game(463);resist.enemies=[];resist.items=[];resist.traps=[];
+resist.player={x:10,y:10};
+for(let x=11;x<=16;x++)resist.tile(x,10).t='water';
+resist.enemies=[
+  {id:882,type:'guard',x:11,y:10,hp:40,maxHp:40,stun:0,windup:false,cast:null,alert:false},
+  {id:883,type:'eel',x:16,y:10,hp:40,maxHp:40,stun:0,windup:false,cast:null,alert:false}
+];
+resist.useItem(1,11,10);
+assert.equal(resist.enemies.find(e=>e.id===882).hp,34,'stone guard lightning resistance');
+assert.equal(resist.enemies.find(e=>e.id===883).hp,29,'water spirit lightning vulnerability');
+assert.equal(resist.enemies.find(e=>e.id===883).stun,1,'enemy stun diminishes after advance');
+console.log('PASS: no invisible targeting, full propagation, turn-matched logs,');
+console.log('      floor/kill skill replenishment, enemy elemental resistance.');
 
 console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');
