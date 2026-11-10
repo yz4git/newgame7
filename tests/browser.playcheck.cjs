@@ -54,6 +54,56 @@ async function run(){
           caption+' bottom buttons not accessible: '+JSON.stringify(measurements));
       };
       await assertDockVisible('iPhone portrait');
+      const assertBattleLog=async(label)=>{
+        const measured=await page.evaluate(()=>{
+          const overlay=document.querySelector('#battleLogOverlay');
+          const dock=document.querySelector('#app > .actions');
+          const board=document.querySelector('#board');
+          const overlayBox=overlay.getBoundingClientRect(),
+            dockBox=dock.getBoundingClientRect(),
+            boardBox=board.getBoundingClientRect();
+          const history=document.querySelector('#historyButton');
+          const buttonBox=history.getBoundingClientRect();
+          const buttonHit=document.elementFromPoint(
+            buttonBox.left+buttonBox.width/2,buttonBox.top+buttonBox.height/2);
+          const overlayArea={
+            x:boardBox.left+boardBox.width*.25,
+            y:Math.max(overlayBox.top,boardBox.top)+Math.min(20,Math.max(0,Math.min(overlayBox.bottom,boardBox.bottom)-Math.max(overlayBox.top,boardBox.top))/2)
+          };
+          const overlapped=boardBox.bottom>overlayBox.top+14&&boardBox.top<overlayBox.bottom-14;
+          const touchTarget=overlapped?document.elementFromPoint(overlayArea.x,overlayArea.y):null;
+          return {
+            position:getComputedStyle(overlay).position,
+            pointerEvents:getComputedStyle(overlay).pointerEvents,
+            overlayTop:overlayBox.top,overlayBottom:overlayBox.bottom,
+            dockTop:dockBox.top,
+            viewportBottom:(window.visualViewport?.offsetTop||0)+(window.visualViewport?.height||window.innerHeight),
+            rows:overlay.querySelectorAll('.battle-log-line').length,
+            hint:overlay.querySelector('#hint').textContent,
+            historyHit:buttonHit===history||history.contains(buttonHit),
+            overlapped,touchTargetId:touchTarget?.id||null,
+            hasLogText:overlay.querySelector('.battle-log-message')?.textContent.length>0
+          };
+        });
+        assert.equal(measured.position,'fixed',label+' log must be fixed');
+        assert.equal(measured.pointerEvents,'none',label+' log layer must be tap-through');
+        assert.ok(measured.overlayTop>=0&&measured.overlayBottom<=measured.dockTop+2,
+          label+' overlay not above buttons: '+JSON.stringify(measured));
+        assert.ok(measured.dockTop<=measured.viewportBottom,
+          label+' dock off-screen: '+JSON.stringify(measured));
+        assert.ok(measured.rows>=1&&measured.hasLogText,label+' no visible log rows');
+        assert.ok(measured.historyHit,label+' log history button untouchable');
+        if(measured.overlapped)assert.equal(measured.touchTargetId,'board',
+          label+' log must not block touches on map: '+JSON.stringify(measured));
+      };
+      await assertBattleLog('portrait');
+      await page.locator('#historyButton').click();
+      assert.equal(await page.getByRole('dialog').isVisible(),true);
+      await page.getByRole('button',{name:'冒険に戻る'}).click();
+      assert.equal(await page.getByRole('dialog').isVisible(),false);
+      assert.equal(await page.evaluate(()=>window.__deepWeaveTest.getState().turn),0,
+        'opening log history must not spend a turn');
+
       const before=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.equal(before.turn,0);
       const box=await page.locator('#board').boundingBox();assert.ok(box&&box.width>200);
@@ -95,6 +145,9 @@ async function run(){
       await page.locator('#historyButton').click();
       await page.getByRole('dialog').getByText('冒険の記録').waitFor();
       await page.getByRole('button',{name:'冒険に戻る'}).click();
+      const overlayRows=await page.locator('#battleLogLines .battle-log-line').allTextContents();
+      assert.ok(overlayRows.some(x=>/T[1-9]/.test(x)),
+        'action log failed to show new turn: '+JSON.stringify(overlayRows));
       const after=await page.evaluate(()=>window.__deepWeaveTest.getState());
       assert.ok(after.turn>=1);
       const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:window.innerWidth,canvas:document.querySelector('#board').width}));
@@ -105,6 +158,7 @@ async function run(){
       await page.setViewportSize({width:390,height:700});
       await page.waitForTimeout(100);
       await assertDockVisible('short Safari viewport');
+      await assertBattleLog('short Safari viewport');
       const short=await page.evaluate(()=>{
         const v=window.innerWidth,r=document.querySelector('#board').getBoundingClientRect();
         return {viewport:v,board:r.width,left:r.left,right:v-r.right,doc:document.documentElement.scrollWidth};
@@ -117,9 +171,11 @@ async function run(){
       await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
       await page.waitForTimeout(80);
       await assertDockVisible('scrolled page');
+      await assertBattleLog('scrolled page');
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.waitForTimeout(80);
       await assertDockVisible('scrolled back');
+      await assertBattleLog('scrolled back');
       assert.equal(versionRequests.length,1,'version polling happened during play');
       // Simulate the release endpoint advancing while the app is open.
       // The game must NEVER reload or interrupt the existing run.

@@ -34,6 +34,21 @@
     toastEl.textContent=message;toastEl.classList.add('show');
     clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2200);
   }
+  // Fixed HUD projection of the existing run log. It does not consume a turn,
+  // allocate gameplay state or intercept gestures on the canvas beneath it.
+  function renderBattleLog(){
+    const parent=$('battleLogLines');
+    const events=game.log.length?game.log.slice(0,3):[{turn:game.turn,text:'影の底へ進もう。'}];
+    const fragment=document.createDocumentFragment();
+    for(let i=0;i<events.length;i++){
+      const event=events[i];
+      const line=document.createElement('div');line.className='battle-log-line'+(i===0?' newest':'');
+      const turn=document.createElement('span');turn.className='battle-log-turn';turn.textContent='T'+event.turn;
+      const msg=document.createElement('span');msg.className='battle-log-message';msg.textContent=event.text;
+      line.append(turn,msg);fragment.appendChild(line);
+    }
+    parent.replaceChildren(fragment);
+  }
   function refresh(){
     const s=game.status();
     floorLabel.textContent='B'+s.floor+' / '+s.maxFloor;
@@ -43,6 +58,7 @@
     hpBar.classList.toggle('low',s.hp/s.maxHp<.35);
     atkText.textContent=s.attack;turnText.textContent=s.turn;scoreText.textContent=s.score;
     const last=game.log[0];recent.textContent=last?last.text:'影の底へ進もう。';
+    renderBattleLog();
     bag.textContent=game.inventory.length+'/8';
     quickSuggestion=game.suggestSkill();
     const quick=$('skillButton');

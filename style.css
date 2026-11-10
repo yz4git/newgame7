@@ -235,3 +235,116 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   color:#ffe6a5;
   font-weight:700;
 }
+
+
+/* v0.8: always-visible translucent action log overlay above the thumb dock.
+   A pointer-transparent surface keeps the entire map touchable underneath. */
+#app > #battleLogOverlay {
+  position:fixed;
+  z-index:49;
+  box-sizing:border-box;
+  left:50%;
+  right:auto;
+  top:auto;
+  bottom:calc(var(--dw-dock-height) + 7px);
+  transform:translateX(-50%);
+  width:min(520px,calc(100vw - 8px));
+  max-height:134px;
+  min-height:0;
+  padding:6px 9px 7px;
+  margin:0 !important;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  overflow:hidden;
+  pointer-events:none;
+  border:1px solid rgba(185,152,94,.67);
+  border-left:3px solid #eac17e;
+  border-radius:10px;
+  background:linear-gradient(115deg,rgba(7,22,30,.91),rgba(10,26,36,.84));
+  box-shadow:0 4px 24px #000a,inset 0 1px 0 #c8b78a22;
+  -webkit-backdrop-filter:blur(7px);
+  backdrop-filter:blur(7px);
+}
+#battleLogOverlay .battle-log-heading{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex:0 0 auto;
+  min-height:19px;
+  color:#e8c790;
+  font-size:9px;
+  font-weight:800;
+  line-height:1.2;
+  letter-spacing:.14em;
+}
+#historyButton{
+  pointer-events:auto;
+  min-width:52px;
+  min-height:25px;
+  border:1px solid #657f85;
+  border-radius:6px;
+  background:#1b3942;
+  color:#f5e2b5;
+  font-size:10px;
+  font-weight:700;
+  padding:3px 7px;
+  touch-action:manipulation;
+}
+#battleLogOverlay .battle-log-lines{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  gap:2px;
+  overflow:hidden;
+}
+#battleLogOverlay .battle-log-line{
+  display:grid;
+  grid-template-columns:25px minmax(0,1fr);
+  gap:6px;
+  align-items:start;
+  line-height:1.35;
+  font-size:11px;
+  color:#c5d4d4;
+}
+#battleLogOverlay .battle-log-line.newest{color:#fff3dc;font-weight:700;}
+#battleLogOverlay .battle-log-turn{
+  font-size:9px;
+  font-variant-numeric:tabular-nums;
+  padding-top:2px;
+  color:#cba975;
+}
+#battleLogOverlay .battle-log-message{
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+#battleLogOverlay .battle-log-line.newest .battle-log-message {
+  white-space:normal;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+}
+#battleLogOverlay .battle-log-hint{
+  flex:0 0 auto;
+  font-size:9px;
+  line-height:1.2;
+  min-height:10px;
+  margin-top:3px;
+  padding-top:4px;
+  border-top:1px solid rgba(131,162,164,.25);
+  color:#9fc7ce;
+}
+.battle-log-sr-only{
+  position:absolute!important;
+  width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+#app > #cancelAim{bottom:calc(var(--dw-dock-height) + 145px);}
+@media (max-height:740px) {
+  #app > #battleLogOverlay{max-height:104px;padding:5px 8px;}
+  #battleLogOverlay .battle-log-line:nth-child(n+3){display:none;}
+  #app > #cancelAim{bottom:calc(var(--dw-dock-height) + 115px);}
+}

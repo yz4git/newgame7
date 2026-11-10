@@ -35,7 +35,12 @@
   <div class="map-frame"><canvas id="board" width="360" height="440" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas></div>
   <div class="map-corners"><span>THE UNKNOWN AWAITS</span><span id="viewTurn">TURN 0</span></div>
 </section>
-<section class="feedback" id="historyButton" role="button" tabindex="0" aria-label="冒険の記録を開く"><div class="log" id="recent" aria-live="polite">影の底へ進もう。</div><div class="hint" id="hint">タップで進む · スワイプで1歩 · 長押しで調べる</div></section>
+<section class="feedback battle-log-overlay" id="battleLogOverlay" aria-label="戦闘・行動ログ">
+  <div class="battle-log-heading"><span>✦ ACTION LOG</span><button id="historyButton" type="button" aria-label="冒険の記録を開く">履歴 ▸</button></div>
+  <div id="battleLogLines" class="battle-log-lines" role="log" aria-live="polite" aria-relevant="additions text"><div class="battle-log-line newest"><span class="battle-log-turn">T0</span><span class="battle-log-message">影の底へ進もう。</span></div></div>
+  <span id="recent" class="battle-log-sr-only">影の底へ進もう。</span>
+  <div class="hint battle-log-hint" id="hint">タップで進む · スワイプで1歩 · 長押しで調べる</div>
+</section>
 <section class="actions" aria-label="行動">
   <button type="button" id="bagButton" aria-label="道具を使う" class="action primary"><strong>✧</strong><span>道具</span><small id="bag">4/8</small></button>
   <button type="button" id="skillButton" class="action skill" disabled aria-label="発動可能な属性技はありません"><strong id="skillGlyph">✦</strong><span id="skillLabel">属性技</span><small id="skillInfo">敵を発見で発動</small></button>
