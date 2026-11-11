@@ -296,4 +296,89 @@ assert.equal(resist.enemies.find(e=>e.id===883).stun,1,'enemy stun diminishes af
 console.log('PASS: no invisible targeting, full propagation, turn-matched logs,');
 console.log('      floor/kill skill replenishment, enemy elemental resistance.');
 
+
+// v0.11: discovered traps must not lock down their eight surrounding cells.
+// Route planning should exclude the trap tile itself, but keep all safe
+// adjacent squares eligible even when they touch multiple traps.
+function trapRouteFixture(mode){
+  const g=new Game(721);
+  g.enemies=[];g.items=[];g.traps=[];
+  g.player={x:10,y:10};g.stairs={x:22,y:23};
+  for(let y=7;y<=14;y++)for(let x=7;x<=17;x++){
+    const tile=g.tile(x,y);
+    tile.t='floor';tile.fire=0;tile.fireOwner=null;
+  }
+  if(mode==='corridor'){
+    for(let y=7;y<=14;y++)for(let x=7;x<=17;x++)
+      g.tile(x,y).t=y===10&&x>=10&&x<=14?'floor':'wall';
+  }
+  return g;
+}
+const adjacentTrap=trapRouteFixture();
+adjacentTrap.traps=[{id:9701,x:11,y:10,known:true,used:false}];
+assert.equal(adjacentTrap.canSeeDanger(),false,
+  'a trap beside the player is not itself an auto-movement emergency');
+const safeDetour=adjacentTrap.pathTo(14,10);
+assert.ok(safeDetour.length>=4,'known trap blocked a walkable adjacent route');
+assert.ok(!safeDetour.some(p=>p.x===11&&p.y===10),
+  'automatic route entered a known trap');
+assert.ok(safeDetour.some(p=>Math.max(Math.abs(p.x-11),Math.abs(p.y-10))===1),
+  'path should be able to hug a known trap');
+const hpBeforePath=adjacentTrap.hp;
+for(const point of safeDetour){
+  const dx=point.x-adjacentTrap.player.x,dy=point.y-adjacentTrap.player.y;
+  assert.equal(adjacentTrap.move(dx,dy).ok,true);
+  assert.equal(adjacentTrap.canSeeDanger(),false,
+    'auto movement stops just from trap adjacency');
+}
+assert.deepEqual(adjacentTrap.player,{x:14,y:10});
+assert.equal(adjacentTrap.hp,hpBeforePath,'detour must be damage-free');
+assert.equal(adjacentTrap.traps[0].used,false);
+
+const multipleTraps=trapRouteFixture();
+multipleTraps.traps=[
+  {id:9702,x:11,y:10,known:true,used:false},
+  {id:9703,x:12,y:10,known:true,used:false},
+  {id:9704,x:13,y:10,known:true,used:false}
+];
+const multipleDetour=multipleTraps.pathTo(14,10);
+assert.ok(multipleDetour.length>0,'multiple known traps blocked detour');
+assert.ok(multipleDetour.every(p=>!multipleTraps.trapAt(p.x,p.y)),
+  'route crosses a known trap');
+assert.ok(multipleDetour.some(p=>p.y===11||p.y===9),
+  'route should pass BESIDE the trap line');
+assert.equal(multipleTraps.pathTo(11,10).length,0,
+  'known trap may not be an automatic destination');
+const corridor=trapRouteFixture('corridor');
+corridor.traps=[{id:9705,x:11,y:10,known:true,used:false}];
+assert.equal(corridor.pathTo(14,10).length,0,
+  'single unavoidable known trap must not be crossed automatically');
+const unseen=trapRouteFixture();
+unseen.traps=[{id:9706,x:13,y:10,known:false,used:false}];
+unseen.updateVision();
+assert.equal(unseen.traps[0].known,false,'far trap should start undiscovered');
+const originalRoute=unseen.pathTo(14,10);
+assert.ok(originalRoute.some(p=>p.x===13&&p.y===10),
+  'initial route should have no knowledge of the far trap');
+const first=originalRoute[0];unseen.move(first.x-10,first.y-10);
+assert.equal(unseen.traps[0].known,true,
+  'approaching should reveal trap while automatic movement is in progress');
+assert.equal(unseen.canSeeDanger(),false,
+  'discovering a nearby trap does not force automatic movement to stop');
+const revisedRoute=unseen.pathTo(14,10);
+assert.ok(revisedRoute.length>0,'a newly discovered trap must allow re-routing');
+assert.ok(!revisedRoute.some(p=>p.x===13&&p.y===10),
+  'replanned route must avoid the discovered trap');
+const ownFlame=trapRouteFixture();
+ownFlame.tile(11,10).fire=2;ownFlame.tile(11,10).fireOwner='player';
+assert.ok(ownFlame.pathTo(14,10).length>0,
+  'own harmless fire must not block automatic movement');
+const hostileFlame=trapRouteFixture();
+hostileFlame.tile(11,10).fire=3;hostileFlame.tile(11,10).fireOwner='enemy';
+const aroundFire=hostileFlame.pathTo(14,10);
+assert.ok(aroundFire.length>0&&!aroundFire.some(p=>p.x===11&&p.y===10),
+  'hostile flames should be avoided when a safe detour exists');
+console.log('PASS: safe adjacency, multi-trap detours, blocked corridor,');
+console.log('      newly discovered trap replanning and hostile fire avoidance.');
+
 console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');

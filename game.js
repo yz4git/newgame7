@@ -8,7 +8,7 @@
   const floorLabel=$('floorLabel'),floorName=$('floorName'),hpText=$('hpText'),hpBar=$('hpBar');
   const atkText=$('atkText'),turnText=$('turnText'),scoreText=$('scoreText');
   const recent=$('recent'),bag=$('bag'),tooltip=$('tooltip'),toastEl=$('toast'),sheet=$('sheet'),modal=$('modal'),hint=$('hint');
-  let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
+  let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,autoReplans=0,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
   let soundEnabled=false,audioContext=null;
   let particles=[],armedTrap=null,flashUntil=0,quickSuggestion=null;
   let lastEffectSeq=0,activeVfx=[],quickPreview=new Set();
@@ -152,7 +152,7 @@
     hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
       warning?(warning.windup?'⚠ 重装獣の強攻撃を回避！':
         warning.cast==='arrow'?'⚠ 射手が狙っている！壁・煙の陰へ':'⚠ 火術の詠唱中！退避しよう'):
-      autoTarget?'自動移動中 · 敵・罠を見つけると停止':
+      autoTarget?'自動移動中 · 発見した罠を回避しながら進む':
       quickSuggestion?'✦ '+quickSuggestion.name+'が発動可能 · 属性技をタップ':
       'タップで進む · スワイプで1歩 · 長押しで調べる';
     $('cancelAim').hidden=aim<0;
@@ -329,37 +329,86 @@
     refresh();
   }
   function beginPath(x,y,enemyTarget){
-    stopAuto();armedTrap=null;
-    if(x===game.player.x&&y===game.player.y){return;}
+    stopAuto();armedTrap=null;autoReplans=0;
+    if(x===game.player.x&&y===game.player.y)return;
+    if(game.trapAt(x,y)?.known&&!enemyTarget){
+      showToast('発見済みの罠は自動移動の目的地にできない');return;
+    }
+    const safeRoute=()=>game.pathTo(autoTarget.x,autoTarget.y,!!autoTarget.enemyId);
+    const hazardous=p=>{
+      const tile=game.tile(p.x,p.y);
+      return !!game.trapAt(p.x,p.y)?.known||
+        !!(tile?.fire>0&&tile.fireOwner!=='player');
+    };
     const path=game.pathTo(x,y,!!enemyTarget);
-    if(!path.length){showToast(enemyTarget?'攻撃できる位置への道がない':'そこへ続く道がない');return;}
+    if(!path.length){
+      showToast(enemyTarget?'攻撃できる位置への道がない':'安全な道が見つからない');
+      return;
+    }
     autoTarget={x,y,enemyId:enemyTarget?enemyTarget.id:null,path};
     selection={x,y};
-    // Safe traversal stops when an enemy becomes a visible immediate threat.
-    const advancePath=()=>{
-      autoTimer=0;if(!autoTarget||!game.alive||game.won)return;
-      const target=autoTarget,next=target.path.shift();
-      if(!next){finishAuto();return;}
-      if(game.enemyAt(next.x,next.y)){stopAuto();showToast('敵が道を塞いでいる');refresh();return;}
-      if(game.trapAt(next.x,next.y)?.known||game.tile(next.x,next.y)?.fire>0){
-        stopAuto();showToast('危険な床を発見。自動移動を停止した');refresh();return;
-      }
-      const old=game.turn,dx=next.x-game.player.x,dy=next.y-game.player.y;
-      const wasDanger=game.canSeeDanger();
-      const r=game.move(dx,dy);
-      if(!r.ok){stopAuto();refresh();return;}
-      afterAction(old);
-      if(!game.alive||game.won||r.descended){stopAuto();return;}
-      if(game.canSeeDanger()||wasDanger){stopAuto();showToast('敵や危険を察知。自動移動を停止');refresh();return;}
-      if(target.path.length)autoTimer=setTimeout(advancePath,125);
-      else finishAuto();
-    };
     const finishAuto=()=>{
       if(!autoTarget)return;
-      const id=autoTarget.enemyId;stopAuto();
+      const id=autoTarget.enemyId;
+      stopAuto();
       if(id&&game.enemies.some(e=>e.id===id))
-        showToast('敵の前で停止。タップで攻撃（危険なら距離を取ろう）');
+        showToast('敵の前で停止。タップで攻撃');
       refresh();
+    };
+    const advancePath=()=>{
+      autoTimer=0;
+      if(!autoTarget||!game.alive||game.won)return;
+      const target=autoTarget;
+      // Enemy click-follow can target a moving opponent.
+      if(target.enemyId){
+        const enemy=game.enemies.find(e=>e.id===target.enemyId&&e.hp>0);
+        if(!enemy){stopAuto();refresh();return;}
+        if(enemy.x!==target.x||enemy.y!==target.y){
+          target.x=enemy.x;target.y=enemy.y;
+          target.path=safeRoute();
+        }
+        const adjacent=Math.max(Math.abs(enemy.x-game.player.x),
+          Math.abs(enemy.y-game.player.y))===1;
+        if(adjacent&&!game.blockedDiagonal(game.player.x,game.player.y,enemy.x,enemy.y)){
+          finishAuto();return;
+        }
+      }
+      let next=target.path[0];
+      if(!next){finishAuto();return;}
+      // A trap can be discovered DURING a long walk. Re-plan around it
+      // instead of treating adjacency as a reason to stop altogether.
+      const blocked=()=>hazardous(next)||!!game.enemyAt(next.x,next.y)||
+        !game.walkable(next.x,next.y)||
+        game.blockedDiagonal(game.player.x,game.player.y,next.x,next.y);
+      if(blocked()){
+        autoReplans++;
+        target.path=safeRoute();
+        next=target.path[0];
+        if(!next||blocked()){
+          stopAuto();
+          showToast('安全な迂回路がないため自動移動を停止');
+          refresh();
+          return;
+        }
+      }
+      const old=game.turn,dx=next.x-game.player.x,dy=next.y-game.player.y;
+      if(Math.max(Math.abs(dx),Math.abs(dy))!==1){
+        stopAuto();showToast('経路が変化したため自動移動を停止');refresh();return;
+      }
+      // The path segment has been revalidated: consume it only now.
+      target.path.shift();
+      const wasDanger=game.canSeeDanger();
+      const result=game.move(dx,dy);
+      if(!result.ok){stopAuto();refresh();return;}
+      afterAction(old);
+      if(!game.alive||game.won||result.descended){stopAuto();return;}
+      // Visible enemies and hostile fire underfoot remain real threats.
+      // A known trap merely NEXT TO a safe cell is not a threat.
+      if(game.canSeeDanger()||wasDanger){
+        stopAuto();showToast('敵や直接の危険を察知。自動移動を停止');refresh();return;
+      }
+      if(target.path.length)autoTimer=setTimeout(advancePath,125);
+      else finishAuto();
     };
     autoTimer=setTimeout(advancePath,75);refresh();
   }
@@ -769,5 +818,34 @@
   window.addEventListener('visibilitychange',()=>{if(document.hidden){stopAuto();save();}});
   refresh();showIntro(returning);requestAnimationFrame(draw);
   // Minimal debug surface for deterministic browser playchecks, never changes the game.
-  window.__deepWeaveTest={getMiniMap:()=>drawMiniMap(),getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];quickPreview=new Set();hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
+  // Deterministic, local-only scenario for browser regression tests.
+  // Production users cannot rewrite their active run via this test fixture.
+  function setupTrapAutoScenario(mode){
+    if(!['localhost','127.0.0.1'].includes(location.hostname))
+      throw new Error('local test fixture only');
+    if(!['known','discovered'].includes(mode))throw new Error('invalid fixture');
+    stopAuto();autoReplans=0;armedTrap=null;
+    game=new Game(90112);
+    game.player={x:10,y:10};game.stairs={x:16,y:12};
+    game.enemies=[];game.items=[];game.traps=[];game.log=[];
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const tile=game.tile(x,y);
+      tile.t='wall';tile.seen=false;tile.lit=false;
+      tile.fire=0;tile.fireOwner=null;tile.smoke=0;
+    }
+    for(let y=8;y<=12;y++)for(let x=8;x<=16;x++){
+      const tile=game.tile(x,y);tile.t='floor';tile.seen=true;
+    }
+    game.traps=[{id:9701,x:mode==='known'?11:13,y:10,
+      known:mode==='known',used:false}];
+    game.updateVision();lastEffectSeq=0;activeVfx=[];quickPreview=new Set();
+    hideModal();refresh();
+    return {trap:{...game.traps[0]}};
+  }
+  window.__deepWeaveTest={setupTrapAutoScenario,
+    getAutoState:()=>({running:!!autoTarget,replans:autoReplans,
+      player:{...game.player},turn:game.turn,hp:game.hp,
+      trapKnown:game.traps[0]?.known??false,
+      trapUsed:game.traps[0]?.used??false}),
+    getMiniMap:()=>drawMiniMap(),getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];quickPreview=new Set();hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W, cameraX:clamp(game.player.x-Math.floor(VIEW_W/2),0,W-VIEW_W), cameraY:clamp(game.player.y-Math.floor(VIEW_H/2),0,H-VIEW_H)}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
 })();

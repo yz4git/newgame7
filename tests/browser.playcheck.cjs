@@ -268,6 +268,42 @@ async function run(){
       assert.ok(!combatText.includes('T0')||!combatText.includes('雷連鎖'),
         'the cast may not appear under turn zero');
       await page.screenshot({path:'playcheck-output/'+name+'-elemental.png',fullPage:true});
+      // Real board taps should navigate through SAFE cells adjacent to known
+      // traps, and automatically recalculate when a trap is revealed mid-walk.
+      await page.setViewportSize({width:390,height:844});
+      const tapDungeonCell=async (x,y)=>{
+        await page.locator('#board').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(60);
+        const where=await page.evaluate(({x,y})=>{
+          const rect=document.querySelector('#board').getBoundingClientRect();
+          const view=window.__deepWeaveTest.getViewport();
+          const px=rect.left+(x-view.cameraX+.5)*rect.width/view.columns;
+          const py=rect.top+(y-view.cameraY+.5)*rect.height/view.rows;
+          const element=document.elementFromPoint(px,py);
+          return {px,py,hitBoard:element?.id==='board'};
+        },{x,y});
+        assert.ok(where.hitBoard,'board tap blocked by UI overlay: '+JSON.stringify(where));
+        await page.mouse.click(where.px,where.py);
+      };
+      for(const scenario of ['known','discovered']){
+        const prepared=await page.evaluate(mode=>
+          window.__deepWeaveTest.setupTrapAutoScenario(mode),scenario);
+        assert.equal(prepared.trap.known,scenario==='known',
+          scenario+' fixture initial discovery state incorrect');
+        await tapDungeonCell(14,10);
+        await page.waitForFunction(()=>{const s=window.__deepWeaveTest.getAutoState();
+          return s.player.x===14&&s.player.y===10&&!s.running;
+        },null,{timeout:8000});
+        const done=await page.evaluate(()=>window.__deepWeaveTest.getAutoState());
+        assert.equal(done.hp,30,scenario+' should not suffer trap damage');
+        assert.equal(done.trapUsed,false,scenario+' stepped on known trap');
+        assert.equal(done.trapKnown,true,scenario+' did not discover/recognize trap');
+        assert.ok(done.turn>=4,scenario+' travel never advanced');
+        if(scenario==='discovered')
+          assert.ok(done.replans>=1,'newly revealed trap failed to trigger an automatic detour');
+        await page.screenshot({path:'playcheck-output/'+name+'-trap-'+scenario+'.png',fullPage:true});
+      }
+
       assert.deepEqual(errors,[],'browser errors');
       // Different release only at a new launch: stale shell redirects once
       // and then loads the versioned assets, without an infinite loop.

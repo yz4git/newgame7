@@ -310,8 +310,11 @@
           if(!this.walkable(nx,ny)||this.blockedDiagonal(p.x,p.y,nx,ny)||
              (adjacentToEnemy&&this.enemyAt(nx,ny)))continue;
           const tile=this.tile(nx,ny);
-          const danger=(tile.fire>0?28:0)+(this.trapAt(nx,ny)?.known?26:0)+
-            (tile.t==='oil'||tile.t==='bush'?0.2:0);
+          // Known traps and harmful flames are not auto-walkable destinations.
+          // Cells BESIDE a trap remain ordinary valid route candidates.
+          if(this.trapAt(nx,ny)?.known||
+             (tile.fire>0&&tile.fireOwner!=='player'))continue;
+          const danger=(tile.t==='oil'||tile.t==='bush'?0.2:0);
           const next=p.cost+(dx&&dy?1.4:1)+danger+(this.enemyAt(nx,ny)?12:0);
           const nk=key(nx,ny);
           if(next<(costs.get(nk)??Infinity)){costs.set(nk,next);prev.set(nk,k);open.push({x:nx,y:ny,cost:next});}
@@ -323,9 +326,11 @@
       return path;
     }
     canSeeDanger(){
+      // Automatic routing handles discovered traps and nearby fires per tile.
+      // Proximity to a visible trap alone must NEVER cancel a safe detour.
       return this.enemies.some(e=>e.hp>0&&this.tile(e.x,e.y)?.lit&&dist(e,this.player)<=6)||
-        DIRS.some(([dx,dy])=>{const x=this.player.x+dx,y=this.player.y+dy;
-          return (this.trapAt(x,y)?.known||this.tile(x,y)?.fire>0);});
+        (this.tile(this.player.x,this.player.y)?.fire>0&&
+         this.tile(this.player.x,this.player.y)?.fireOwner!=='player');
     }
     validTarget(x,y,range=6){
       return this.inside(x,y)&&dist(this.player,{x,y})<=range&&this.los(this.player.x,this.player.y,x,y);
