@@ -97,6 +97,51 @@ async function run(){
           label+' log must not block touches on map: '+JSON.stringify(measured));
       };
       await assertBattleLog('portrait');
+
+      // Overlay must share the board without stealing touch events; the
+      // reduced map may show explored terrain only, never unknown geometry.
+      const assertMiniMap=async (caption)=>{
+        const m=await page.evaluate(()=>{
+          const mini=document.querySelector('#minimapOverlay'),canvas=document.querySelector('#minimapCanvas');
+          const frame=document.querySelector('.map-frame'),board=document.querySelector('#board');
+          const r=mini.getBoundingClientRect(),f=frame.getBoundingClientRect(),b=board.getBoundingClientRect();
+          const spot=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+          const state=window.__deepWeaveTest.getMiniMap(),ctx=canvas.getContext('2d');
+          const mul=canvas.width/state.width;
+          const alphaAt=(p)=>p?ctx.getImageData(Math.floor((p.x+.5)*5*mul),
+            Math.floor((p.y+.5)*5*mul),1,1).data[3]:null;
+          const unknownAlpha=alphaAt(state.firstUnknown),playerAlpha=alphaAt(state.player);
+          return {
+            ...state,width:r.width,height:r.height,
+            frameLeft:f.left,frameRight:f.right,frameTop:f.top,
+            left:r.left,right:r.right,top:r.top,
+            canvasWidth:canvas.width,canvasHeight:canvas.height,
+            pointerEvents:getComputedStyle(mini).pointerEvents,
+            hit:spot===board||board.contains(spot),
+            unknownAlpha,playerAlpha
+          };
+        });
+        assert.equal(m.pointerEvents,'none',caption+' minimap intercepts touches');
+        assert.ok(m.hit,caption+' minimap hides game touch targets: '+JSON.stringify(m));
+        assert.ok(m.top>=m.frameTop-1&&m.left>=m.frameLeft-1&&m.right<=m.frameRight+1,
+          caption+' minimap outside board: '+JSON.stringify(m));
+        assert.ok(m.width>=95&&m.width<=140,caption+' minimap wrong size');
+        assert.ok(m.explored>0&&m.unknown>0&&m.currentlyVisible>0,
+          caption+' player knowledge not represented');
+        assert.equal(m.explored+m.unknown,27*29,'minimap omitted map tiles');
+        assert.equal(m.unknownAlpha,0,caption+' unexplored location must be fully transparent');
+        assert.ok(m.playerAlpha>0,caption+' player marker missing');
+        return m;
+      };
+      const firstMap=await assertMiniMap('portrait');
+      assert.equal(firstMap.visibleEnemies,await page.evaluate(()=>
+        window.__deepWeaveTest.getMiniMap().visibleEnemies));
+      const logSurface=await page.evaluate(()=>getComputedStyle(
+        document.querySelector('#battleLogOverlay')).backgroundImage);
+      assert.ok(logSurface.includes('0.46')&&logSurface.includes('0.29'),
+        'log background too opaque: '+logSurface);
+      await page.screenshot({path:'playcheck-output/'+name+'-minimap.png',fullPage:true});
+
       await page.locator('#historyButton').click();
       assert.equal(await page.getByRole('dialog').isVisible(),true);
       await page.getByRole('button',{name:'冒険に戻る'}).click();
@@ -159,6 +204,7 @@ async function run(){
       await page.waitForTimeout(100);
       await assertDockVisible('short Safari viewport');
       await assertBattleLog('short Safari viewport');
+      await assertMiniMap('short Safari viewport');
       const short=await page.evaluate(()=>{
         const v=window.innerWidth,r=document.querySelector('#board').getBoundingClientRect();
         return {viewport:v,board:r.width,left:r.left,right:v-r.right,doc:document.documentElement.scrollWidth};
@@ -172,10 +218,12 @@ async function run(){
       await page.waitForTimeout(80);
       await assertDockVisible('scrolled page');
       await assertBattleLog('scrolled page');
+      await assertMiniMap('scrolled page');
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.waitForTimeout(80);
       await assertDockVisible('scrolled back');
       await assertBattleLog('scrolled back');
+      await assertMiniMap('scrolled back');
       assert.equal(versionRequests.length,1,'version polling happened during play');
       // Simulate the release endpoint advancing while the app is open.
       // The game must NEVER reload or interrupt the existing run.
@@ -191,6 +239,8 @@ async function run(){
       // engine wave must also be visible on the Canvas.
       // Quick skill must never target opponents hidden in fog.
       await page.evaluate(()=>window.__deepWeaveTest.seedRun(2));
+      assert.equal((await page.evaluate(()=>window.__deepWeaveTest.getMiniMap())).visibleEnemies,0,
+        'hidden monsters must not appear on transparent minimap');
       assert.equal(await page.evaluate(()=>window.__deepWeaveTest.getQuick()),null,
         'quick skill must not detect hidden enemies');
       assert.equal(await page.locator('#skillButton').isDisabled(),true);

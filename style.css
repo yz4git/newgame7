@@ -348,3 +348,67 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   #battleLogOverlay .battle-log-line:nth-child(n+3){display:none;}
   #app > #cancelAim{bottom:calc(var(--dw-dock-height) + 115px);}
 }
+
+
+/* v0.10: see-through tactical overlays, Mystery Dungeon-style explored map. */
+#app > #battleLogOverlay {
+  /* Keep text clear while allowing the board to remain visible behind it. */
+  background:linear-gradient(112deg,rgba(6,18,28,.46),rgba(9,26,34,.29));
+  border-color:rgba(200,176,127,.36);
+  border-left-color:rgba(238,198,124,.58);
+  box-shadow:0 3px 12px rgba(0,0,0,.20);
+  -webkit-backdrop-filter:blur(1.5px);
+  backdrop-filter:blur(1.5px);
+}
+#battleLogOverlay .battle-log-line {
+  text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.8);
+}
+#battleLogOverlay .battle-log-heading,
+#battleLogOverlay .battle-log-hint {
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+}
+#minimapOverlay{
+  position:absolute;
+  top:7px;
+  right:7px;
+  z-index:4;
+  width:clamp(100px,31vw,134px);
+  max-width:38%;
+  padding:5px 5px 6px;
+  border:1px solid rgba(129,197,203,.46);
+  border-radius:9px;
+  background:rgba(7,23,33,.30);
+  box-shadow:0 1px 10px rgba(0,0,0,.17);
+  -webkit-backdrop-filter:blur(1px);
+  backdrop-filter:blur(1px);
+  pointer-events:none!important;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+  contain:layout paint;
+}
+#minimapOverlay .minimap-caption{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:0 1px 3px;
+  line-height:1;
+  color:#bdeaf0;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.1em;
+  text-shadow:0 1px 3px #04131b;
+}
+#minimapOverlay .minimap-caption span:last-child{color:#f5d78f;}
+#minimapCanvas{
+  display:block;
+  width:100%;
+  height:auto;
+  aspect-ratio:27/29;
+  pointer-events:none!important;
+  touch-action:none;
+  image-rendering:auto;
+}
+@media(max-width:360px){
+  #minimapOverlay{right:5px;top:5px;width:100px;padding:4px;}
+}

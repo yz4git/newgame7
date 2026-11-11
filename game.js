@@ -4,6 +4,7 @@
   const VIEW_W=9,VIEW_H=11,STORE='deep-weave-run-v2';
   const $=id=>document.getElementById(id);
   const board=$('board'),ctx=board.getContext('2d',{alpha:false});
+  const minimap=$('minimapCanvas'),miniCtx=minimap.getContext('2d');
   const floorLabel=$('floorLabel'),floorName=$('floorName'),hpText=$('hpText'),hpBar=$('hpBar');
   const atkText=$('atkText'),turnText=$('turnText'),scoreText=$('scoreText');
   const recent=$('recent'),bag=$('bag'),tooltip=$('tooltip'),toastEl=$('toast'),sheet=$('sheet'),modal=$('modal'),hint=$('hint');
@@ -49,6 +50,75 @@
     }
     parent.replaceChildren(fragment);
   }
+  // Draw only knowledge the player has earned. Unknown tiles stay transparent,
+  // and monsters/items appear solely in the CURRENT field of vision.
+  function drawMiniMap(){
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const cell=5,logicalW=W*cell,logicalH=H*cell;
+    const newWidth=Math.round(logicalW*dpr),newHeight=Math.round(logicalH*dpr);
+    if(minimap.width!==newWidth||minimap.height!==newHeight){
+      minimap.width=newWidth;minimap.height=newHeight;
+    }
+    miniCtx.setTransform(dpr,0,0,dpr,0,0);
+    miniCtx.clearRect(0,0,logicalW,logicalH);
+    const tiles={
+      floor:'rgba(170,221,233,.66)',water:'rgba(97,193,231,.69)',
+      ice:'rgba(184,242,255,.77)',oil:'rgba(186,151,228,.66)',
+      bush:'rgba(138,217,155,.66)'
+    };
+    let explored=0,currentlyVisible=0,unknown=0,visibleEnemies=0,firstUnknown=null;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const tile=game.tile(x,y),left=x*cell,top=y*cell;
+      if(!tile.seen){unknown++;if(!firstUnknown)firstUnknown={x,y};continue;}
+      explored++;
+      if(tile.lit)currentlyVisible++;
+      if(tile.t==='wall'){
+        // Walls provide silhouettes; walkable passages stay distinctly bright.
+        miniCtx.fillStyle='rgba(122,151,164,.29)';
+        miniCtx.fillRect(left,top,cell,cell);
+      }else{
+        miniCtx.fillStyle=tiles[tile.t]||tiles.floor;
+        miniCtx.fillRect(left+.45,top+.45,cell-.9,cell-.9);
+        // Keep the exploration map useful even after leaving a chamber.
+        if(!tile.lit){
+          miniCtx.fillStyle='rgba(4,17,27,.20)';
+          miniCtx.fillRect(left+.45,top+.45,cell-.9,cell-.9);
+        }
+      }
+    }
+    // Landmarks only once explored.
+    if(game.tile(game.stairs.x,game.stairs.y)?.seen){
+      miniCtx.fillStyle='#ffc46d';
+      miniCtx.fillRect((game.stairs.x+.05)*cell,(game.stairs.y+.05)*cell,cell*.9,cell*.9);
+    }
+    for(const obj of game.items){
+      if(!game.tile(obj.x,obj.y)?.lit)continue;
+      miniCtx.fillStyle='#d3a4ff';
+      miniCtx.fillRect((obj.x+.25)*cell,(obj.y+.25)*cell,cell*.5,cell*.5);
+    }
+    for(const trap of game.traps){
+      if(!trap.known||trap.used||!game.tile(trap.x,trap.y)?.lit)continue;
+      miniCtx.fillStyle='#ffad6d';
+      miniCtx.fillRect((trap.x+.32)*cell,(trap.y+.32)*cell,cell*.36,cell*.36);
+    }
+    for(const enemy of game.enemies){
+      if(enemy.hp<=0||!game.tile(enemy.x,enemy.y)?.lit)continue;
+      visibleEnemies++;
+      miniCtx.fillStyle='#ff655d';
+      miniCtx.beginPath();
+      miniCtx.arc((enemy.x+.5)*cell,(enemy.y+.5)*cell,cell*.65,0,Math.PI*2);
+      miniCtx.fill();
+    }
+    // Bright hero dot + dark ring remains legible against water or ice.
+    const px=(game.player.x+.5)*cell,py=(game.player.y+.5)*cell;
+    miniCtx.strokeStyle='rgba(3,21,29,.95)';miniCtx.lineWidth=1.8;
+    miniCtx.fillStyle='#ffe792';
+    miniCtx.beginPath();miniCtx.arc(px,py,cell*.93,0,Math.PI*2);
+    miniCtx.fill();miniCtx.stroke();
+    $('minimapFloor').textContent='B'+game.floor;
+    return {explored,currentlyVisible,unknown,visibleEnemies,firstUnknown,
+      width:logicalW,height:logicalH,player:{...game.player}};
+  }
   function refresh(){
     const s=game.status();
     floorLabel.textContent='B'+s.floor+' / '+s.maxFloor;
@@ -60,6 +130,7 @@
     const last=game.log[0];recent.textContent=last?last.text:'影の底へ進もう。';
     renderBattleLog();
     bag.textContent=game.inventory.length+'/8';
+    drawMiniMap();
     quickSuggestion=game.suggestSkill();
     quickPreview=new Set();
     if(quickSuggestion&&quickSuggestion.type==='spark'){
@@ -698,5 +769,5 @@
   window.addEventListener('visibilitychange',()=>{if(document.hidden){stopAuto();save();}});
   refresh();showIntro(returning);requestAnimationFrame(draw);
   // Minimal debug surface for deterministic browser playchecks, never changes the game.
-  window.__deepWeaveTest={getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];quickPreview=new Set();hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
+  window.__deepWeaveTest={getMiniMap:()=>drawMiniMap(),getQuick:()=>game.suggestSkill(),getVfx:()=>({active:activeVfx.length,latest:lastEffectSeq}),seedRun:(seed)=>{game=new Game(seed);lastEffectSeq=0;activeVfx=[];quickPreview=new Set();hideModal();refresh();},getViewport:()=>({columns:VIEW_W,rows:VIEW_H,tileCssPixels:board.getBoundingClientRect().width/VIEW_W}),getState:()=>({floor:game.floor,turn:game.turn,hp:game.hp,alive:game.alive,player:{...game.player},inventory:game.inventory.length}),step:(dx,dy)=>step(dx,dy)};
 })();

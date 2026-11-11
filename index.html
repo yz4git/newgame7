@@ -32,7 +32,11 @@
 </section>
 <section class="map-wrap" aria-label="ダンジョン">
   <div class="map-corners"><span id="viewFloor">B1</span><span>✦ THE DESCENT ✦</span></div>
-  <div class="map-frame"><canvas id="board" width="360" height="440" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas></div>
+  <div class="map-frame"><canvas id="board" width="360" height="440" aria-label="地図。タップで移動や攻撃、スワイプで一歩、長押しで調査" role="application"></canvas>
+  <div class="minimap-overlay" id="minimapOverlay" role="img" aria-label="探索済みの地形・現在位置・見えている敵・発見済み階段を示す半透明ミニマップ">
+    <div class="minimap-caption"><span>◈ MAP</span><span id="minimapFloor">B1</span></div>
+    <canvas id="minimapCanvas" width="135" height="145" aria-hidden="true"></canvas>
+  </div></div>
   <div class="map-corners"><span>THE UNKNOWN AWAITS</span><span id="viewTurn">TURN 0</span></div>
 </section>
 <section class="feedback battle-log-overlay" id="battleLogOverlay" aria-label="戦闘・行動ログ">
