@@ -125,7 +125,7 @@ async function run(){
         assert.ok(m.hit,caption+' minimap hides game touch targets: '+JSON.stringify(m));
         assert.ok(m.top>=m.frameTop-1&&m.left>=m.frameLeft-1&&m.right<=m.frameRight+1,
           caption+' minimap outside board: '+JSON.stringify(m));
-        assert.ok(m.width>=95&&m.width<=140,caption+' minimap wrong size');
+        assert.ok(m.width>=65&&m.width<=110,caption+' minimap wrong size');
         assert.ok(m.explored>0&&m.unknown>0&&m.currentlyVisible>0,
           caption+' player knowledge not represented');
         assert.equal(m.explored+m.unknown,27*29,'minimap omitted map tiles');
@@ -134,6 +134,9 @@ async function run(){
         return m;
       };
       const firstMap=await assertMiniMap('portrait');
+      const explore=await page.locator('#exploreLabel').innerText();
+      assert.match(explore,/探索 1\/\d+部屋/,
+        'room exploration counter must be visible: '+explore);
       assert.equal(firstMap.visibleEnemies,await page.evaluate(()=>
         window.__deepWeaveTest.getMiniMap().visibleEnemies));
       const logSurface=await page.evaluate(()=>getComputedStyle(
@@ -141,6 +144,15 @@ async function run(){
       assert.ok(logSurface.includes('0.46')&&logSurface.includes('0.29'),
         'log background too opaque: '+logSurface);
       await page.screenshot({path:'playcheck-output/'+name+'-minimap.png',fullPage:true});
+      const miniAppearance=await page.evaluate(()=>{
+        const m=document.querySelector('#minimapOverlay');
+        const style=getComputedStyle(m),rect=m.getBoundingClientRect();
+        return {width:rect.width,alpha:style.backgroundColor,
+          opacity:Number(style.opacity),interactive:style.pointerEvents};
+      });
+      assert.ok(miniAppearance.width<110,
+        'minimap still covers too much of the battlefield');
+      assert.equal(miniAppearance.interactive,'none');
 
       await page.locator('#historyButton').click();
       assert.equal(await page.getByRole('dialog').isVisible(),true);

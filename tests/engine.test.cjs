@@ -381,4 +381,81 @@ assert.ok(aroundFire.length>0&&!aroundFire.some(p=>p.x===11&&p.y===10),
 console.log('PASS: safe adjacency, multi-trap detours, blocked corridor,');
 console.log('      newly discovered trap replanning and hostile fire avoidance.');
 
+
+// v0.12: guaranteed safe stairs, legacy save repair, optional room rewards.
+let allSafe=0,totalTraps=0,roomGenerated=0;
+for(const depth of [1,3,6,9,12])for(let seed=1;seed<=100;seed++){
+  const g=new Game(seed);g.floor=depth;g.generate();
+  allSafe++;totalTraps+=g.traps.length;
+  assert.ok(g.safeRouteExists(),'trap-locked map seed '+seed+' floor '+depth);
+  assert.ok(g.pathTo(g.stairs.x,g.stairs.y).length>0,
+    'path planner must find the guaranteed safe route');
+  assert.equal(g.rooms[0].visited,true,'start room must be marked visited');
+  assert.equal(g.discoveries,1);
+  if(g.rooms.length>=3)roomGenerated++;
+}
+assert.ok(totalTraps>allSafe*2,'trap prevention erased nearly all hazards');
+assert.ok(roomGenerated>allSafe*.8,'exploration rooms absent');
+
+// The older generator used to strand the hero in a single-tile corridor.
+const oldLocked=trapRouteFixture('corridor');
+oldLocked.stairs={x:14,y:10};
+oldLocked.traps=[{id:8900,x:11,y:10,known:true,used:false},
+  {id:8901,x:14,y:12,known:false,used:false}];
+assert.equal(oldLocked.safeRouteExists(),false);
+oldLocked.turn=48;oldLocked.hp=17;
+delete oldLocked.routeRevision;
+const repaired=Game.restore(oldLocked.serialize());
+assert.equal(repaired.turn,48,'restore must preserve action count');
+assert.equal(repaired.hp,17,'restore must preserve HP');
+assert.ok(repaired.safeRouteExists(),'restored old trap corridor remained blocked');
+assert.equal(repaired.traps.length,1,'remove only the mandatory choke-point trap');
+assert.equal(repaired.traps[0].id,8901,'unrelated trap must stay');
+assert.equal(repaired.routeRevision,1);
+assert.equal(Game.restore(repaired.serialize()).traps.length,1,
+  'upgraded save must not be mutated twice');
+
+// Unvisited rooms are optional detours with a tangible periodic payoff.
+const discover=new Game(4532);
+assert.ok(discover.rooms.length>=4);
+discover.rooms.forEach(r=>r.visited=false);
+discover.discoveries=0;discover.hp=18;
+const beforeScore=discover.score;
+for(let i=0;i<3;i++){
+  discover.player={x:discover.rooms[i].cx,y:discover.rooms[i].cy};
+  discover.discoverRoom();
+}
+assert.equal(discover.discoveries,3);
+assert.equal(discover.hp,24,'third discovered room should replenish health');
+assert.ok(discover.score>=beforeScore+180);
+discover.discoverRoom();
+assert.equal(discover.discoveries,3,'no repeat farming for revisiting same room');
+const exploredSave=Game.restore(discover.serialize());
+assert.equal(exploredSave.discoveries,3,'room reward progress must survive saves');
+assert.ok(exploredSave.rooms.slice(0,3).every(r=>r.visited));
+const satchel=new Game(4532);
+satchel.rooms.forEach(r=>r.visited=false);satchel.discoveries=0;
+satchel.hp=satchel.maxHp;
+for(let i=0;i<3;i++){
+  satchel.player={x:satchel.rooms[i].cx,y:satchel.rooms[i].cy};
+  satchel.discoverRoom();
+}
+assert.equal(satchel.inventory.length,5,
+  'exploring three rooms at full HP should grant a technique');
+
+// Faraway visible enemies no longer halt automatic walking prematurely.
+const farAlert=new Game(4555);farAlert.enemies=[];farAlert.items=[];farAlert.traps=[];
+farAlert.player={x:10,y:10};
+for(let y=8;y<=16;y++)for(let x=8;x<=16;x++)farAlert.tile(x,y).t='floor';
+farAlert.enemies=[{id:998,type:'sprout',x:14,y:10,hp:7,maxHp:7,
+  alert:true,stun:0,cast:null,windup:false}];
+farAlert.updateVision();
+assert.equal(farAlert.tile(14,10).lit,true,'enemy should be visible');
+assert.equal(farAlert.canSeeDanger(),false,'distant melee enemy is not immediate danger');
+farAlert.enemies[0].x=12;
+farAlert.updateVision();
+assert.equal(farAlert.canSeeDanger(),true,'nearby enemy must still stop auto movement');
+console.log('PASS: 500 trap-safe maps, legacy trap repair, exploration rewards,');
+console.log('      save persistence, far-enemy route risk distinction.');
+
 console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');

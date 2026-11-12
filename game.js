@@ -115,6 +115,16 @@
     miniCtx.fillStyle='#ffe792';
     miniCtx.beginPath();miniCtx.arc(px,py,cell*.93,0,Math.PI*2);
     miniCtx.fill();miniCtx.stroke();
+    // Unvisited rooms are optional reward targets: show a small cyan
+    // marker only after the room's center has actually been observed.
+    for(const room of game.rooms){
+      if(room.visited||!game.tile(room.cx,room.cy)?.seen)continue;
+      const x=(room.cx+.5)*cell,y=(room.cy+.5)*cell;
+      miniCtx.fillStyle='#9bf5e9';
+      miniCtx.beginPath();miniCtx.moveTo(x,y-cell*.6);
+      miniCtx.lineTo(x+cell*.6,y);miniCtx.lineTo(x,y+cell*.6);
+      miniCtx.lineTo(x-cell*.6,y);miniCtx.closePath();miniCtx.fill();
+    }
     $('minimapFloor').textContent='B'+game.floor;
     return {explored,currentlyVisible,unknown,visibleEnemies,firstUnknown,
       width:logicalW,height:logicalH,player:{...game.player}};
@@ -127,10 +137,12 @@
     hpBar.style.width=(100*s.hp/s.maxHp)+'%';
     hpBar.classList.toggle('low',s.hp/s.maxHp<.35);
     atkText.textContent=s.attack;turnText.textContent=s.turn;scoreText.textContent=s.score;
+    $('exploreLabel').textContent='探索 '+(game.discoveries||0)+'/'+game.rooms.length+'部屋';
     const last=game.log[0];recent.textContent=last?last.text:'影の底へ進もう。';
     renderBattleLog();
     bag.textContent=game.inventory.length+'/8';
     drawMiniMap();
+    $('minimapOverlay').classList.toggle('combat',game.canSeeDanger());
     quickSuggestion=game.suggestSkill();
     quickPreview=new Set();
     if(quickSuggestion&&quickSuggestion.type==='spark'){
@@ -152,7 +164,7 @@
     hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
       warning?(warning.windup?'⚠ 重装獣の強攻撃を回避！':
         warning.cast==='arrow'?'⚠ 射手が狙っている！壁・煙の陰へ':'⚠ 火術の詠唱中！退避しよう'):
-      autoTarget?'自動移動中 · 発見した罠を回避しながら進む':
+      autoTarget?'自動移動中 · 罠を回避／近い敵で停止':
       quickSuggestion?'✦ '+quickSuggestion.name+'が発動可能 · 属性技をタップ':
       'タップで進む · スワイプで1歩 · 長押しで調べる';
     $('cancelAim').hidden=aim<0;
@@ -198,7 +210,9 @@
       '<p><b>✦ 属性技</b>：現在見えている敵だけをもとに技と目標を提案。未発見の敵を自動検知しない。光ったら1タップ発動・道具1個消費。</p>'+
       '<p><b>道具</b>：鞄から道具を選んで好きな場所に使うこともできる。薬はすぐ使用。</p>'+
       '<p><b>連鎖</b>：水・氷の接続全体を雷が走る。起点から遠いほど弱まり、石の衛兵は雷に強く、水精は弱い。氷結・延焼・突風も活用。</p>'+
+      '<p><b>探索報酬</b>：未踏の部屋に入ると得点が増え、3部屋ごとにHP回復または属性技を獲得。ミニマップの水色の印が未踏の部屋。</p>'+
       '<p><b>技の補充</b>：4体倒すごとに属性技を1つ、階層移動でも1つ補充（道具袋に空きがある場合）。</p>'+
+      '<p><b>罠</b>：発見済みの罠は自動移動で回避。新しい階には階段までの安全な道が必ずある。古い冒険の通路も自動修復。</p>'+
       '<p><b>自分の技は安全</b>：自分の火種から生じた炎ではダメージを受けない。敵が作った炎は危険。</p>'+
       '<p><b>ターン</b>：移動、攻撃、道具使用、待機でのみ敵が動く。長押しやメニューでは進まない。死亡で探索終了。</p>',
       [{label:'図鑑を見る',click:()=>showLegend('terrain')},
@@ -652,6 +666,15 @@
       if(t.smoke>0){
         c.fillStyle='rgba(169,157,184,.23)';c.beginPath();c.arc(px+s*.4,py+s*.48,s*.3,0,Math.PI*2);c.arc(px+s*.65,py+s*.45,s*.24,0,Math.PI*2);c.fill();
       }
+    }
+    // Signpost for newly discovered optional rooms; taking a detour
+    // awards exploration score and, periodically, HP or another technique.
+    if(!override&&t.lit&&game.rooms.some(room=>!room.visited&&
+        room.cx===x&&room.cy===y)){
+      c.shadowColor='#7bffe2';c.shadowBlur=8;
+      c.fillStyle='#c8ffed';c.font='bold '+Math.round(s*.42)+'px sans-serif';
+      c.textAlign='center';c.textBaseline='middle';
+      c.fillText('✧',px+s*.5,py+s*.47);c.shadowBlur=0;
     }
     const trap=override?(override.feature==='trap'?{known:true}:null):game.trapAt(x,y);
     if(trap&&trap.known){

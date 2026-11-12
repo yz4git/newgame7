@@ -43,7 +43,7 @@
       this.floor = 1; this.turn = 0; this.hp = 30; this.maxHp = 30; this.attack = 5;
       this.rank = 0; this.kills = 0; this.score = 0; this.alive = true; this.won = false;
       this.inventory = [{type:'heal'},{type:'spark'},{type:'frost'},{type:'ember'}];
-      this.log = []; this.nextId = 1; this.effects=[]; this.effectSeq=0; this.elementRevision=1;
+      this.log = []; this.nextId = 1; this.effects=[]; this.effectSeq=0; this.elementRevision=1; this.routeRevision=1;
       this.generate(); this.say('下へ降り、最深部の「星の核」を探そう。');
     }
     static restore(raw) {
@@ -54,6 +54,23 @@
       g.effects=Array.isArray(g.effects)?g.effects:[];
       g.effectSeq=Number.isFinite(g.effectSeq)?g.effectSeq:0;
       if(!g.elementRevision){g.upgradeElementMap();g.elementRevision=1;}
+      // Repair runs started under the older trap generator without resetting
+      // floors, HP, inventory or exploration. Unknown traps never become visible.
+      if(!g.routeRevision){
+        g.repairTrapRoutes();
+        g.routeRevision=1;
+      }
+      if(Array.isArray(g.rooms)){
+        for(const room of g.rooms){
+          if(room.visited===undefined){
+            room.visited=!!(g.tile(room.cx,room.cy)?.seen||
+              (room.x!==undefined&&g.player.x>=room.x&&g.player.x<room.x+room.w&&
+                g.player.y>=room.y&&g.player.y<room.y+room.h));
+          }
+        }
+        g.discoveries=Number.isFinite(g.discoveries)?
+          g.discoveries:g.rooms.filter(r=>r.visited).length;
+      }
       return g;
     }
     // Restore pre-elemental saves without resetting the player's run.
@@ -100,7 +117,7 @@
     }
     generate() {
       this.map=Array.from({length:H},()=>Array.from({length:W},()=>({t:'wall',seen:false,lit:false,fire:0,smoke:0})));
-      this.enemies=[];this.items=[];this.traps=[];this.rooms=[];this.effects=[];
+      this.enemies=[];this.items=[];this.traps=[];this.rooms=[];this.effects=[];this.discoveries=0;
       const carve=(x,y)=>{if(this.inside(x,y)&&x>0&&y>0&&x<W-1&&y<H-1)this.map[y][x].t='floor';};
       for(let i=0;i<95&&this.rooms.length<15;i++){
         const rw=this.int(4,8),rh=this.int(4,7),rx=this.int(1,W-rw-2),ry=this.int(1,H-rh-2);
@@ -148,8 +165,20 @@
       for(let y=this.player.y-1;y<=this.player.y+1;y++)for(let x=this.player.x-1;x<=this.player.x+1;x++)
         if(this.walkable(x,y))this.tile(x,y).t='floor';
       this.tile(this.stairs.x,this.stairs.y).t='floor';
+      // Every generated trap is validated as if it were already discovered.
+      // It must never disconnect all safe routes between start and stairs.
       for(let i=0;i<4+Math.floor(this.floor/3);i++){
-        const p=this.freeSpot(5);if(p)this.traps.push({id:this.nextId++,x:p.x,y:p.y,used:false,known:false});
+        for(let attempt=0;attempt<24;attempt++){
+          const p=this.freeSpot(5);if(!p)break;
+          const trap={id:this.nextId++,x:p.x,y:p.y,used:false,known:false};
+          this.traps.push(trap);
+          if(this.safeRouteExists())break;
+          this.traps.pop();
+        }
+      }
+      if(this.rooms.length){
+        this.rooms[0].visited=true;
+        this.discoveries=1;
       }
       const spawnCount=clamp(Math.round(5+this.floor*1.35),7,18);
       for(let i=0;i<spawnCount;i++){
@@ -172,6 +201,53 @@
         this.items.push({id:this.nextId++,x:p.x,y:p.y,type:this.pick(types)});
       }
       this.updateVision();
+    }
+    // Quick connectivity check; traps count as blocked even before discovery.
+    // Adjacent cells (8 directions) stay walkable unless THEY hold a trap.
+    safeRouteExists(from=this.player,to=this.stairs){
+      if(!this.walkable(from.x,from.y)||!this.walkable(to.x,to.y))return false;
+      const forbidden=new Set(this.traps.filter(t=>!t.used)
+        .map(t=>key(t.x,t.y)));
+      const src=key(from.x,from.y),dest=key(to.x,to.y);
+      if(forbidden.has(dest))return false;
+      const seen=new Set([src]),q=[{...from}];
+      for(let i=0;i<q.length;i++){
+        const p=q[i];
+        if(key(p.x,p.y)===dest)return true;
+        for(const [dx,dy] of DIRS){
+          const nx=p.x+dx,ny=p.y+dy,k=key(nx,ny);
+          if(seen.has(k)||forbidden.has(k)||!this.walkable(nx,ny)||
+             this.blockedDiagonal(p.x,p.y,nx,ny))continue;
+          seen.add(k);q.push({x:nx,y:ny});
+        }
+      }
+      return false;
+    }
+    repairTrapRoutes(){
+      if(this.safeRouteExists())return 0;
+      // An old save can contain a mandatory trap. Remove the fewest traps
+      // needed to reopen at least one path, preserving the rest.
+      const active=this.traps.filter(t=>!t.used);
+      const original=this.traps.slice();
+      const n=active.length;
+      for(let count=1;count<=n;count++){
+        const choose=(start,indices)=>{
+          if(indices.length===count){
+            const removed=new Set(indices.map(i=>active[i].id));
+            this.traps=original.filter(t=>!removed.has(t.id));
+            return this.safeRouteExists() ? indices.slice() : null;
+          }
+          for(let i=start;i<=n-(count-indices.length);i++){
+            const solution=choose(i+1,[...indices,i]);
+            if(solution)return solution;
+          }
+          return null;
+        };
+        const result=choose(0,[]);
+        if(result)return result.length;
+      }
+      this.traps=original;
+      return 0;
     }
     distanceToSafe(x,y){return Math.min(dist({x,y},this.player),dist({x,y},this.stairs));}
     freeSpot(minDistance, preferred=null){
@@ -227,6 +303,33 @@
       else{this.inventory.push({type:item.type});this.say(d.name+'を拾った。');}
       this.items=this.items.filter(i=>i.id!==item.id);
     }
+    discoverRoom(){
+      if(!this.rooms?.length)return;
+      for(const room of this.rooms){
+        if(room.visited||room.x===undefined)continue;
+        if(this.player.x<room.x||this.player.x>=room.x+room.w||
+           this.player.y<room.y||this.player.y>=room.y+room.h)continue;
+        room.visited=true;this.discoveries=(this.discoveries||0)+1;
+        this.score+=60+this.floor*10;
+        if(this.discoveries%3===0){
+          // An optional side-room detour restores stamina or supplies a spell,
+          // giving explorers a useful reason to leave the shortest stair route.
+          if(this.hp<=this.maxHp-6){
+            const healed=Math.min(6,this.maxHp-this.hp);
+            this.hp+=healed;
+            this.say('新しい部屋を発見！ 探索の共鳴でHP+'+healed);
+          }else if(this.inventory.length<8){
+            const type=this.pick(['spark','frost','ember','gust']);
+            this.inventory.push({type});
+            this.say('新しい部屋を発見！ 探索報酬：'+ITEM[type].name);
+          }else{
+            this.score+=60;
+            this.say('新しい部屋を発見！ 探索得点を獲得');
+          }
+        }else this.say('未踏の部屋を発見！ 探索 '+this.discoveries+'/'+this.rooms.length);
+        return;
+      }
+    }
     triggerTrap(ent) {
       const isPlayer=ent===this||ent===this.player;
       const pos=isPlayer?this.player:ent;
@@ -275,6 +378,7 @@
       const trap=this.trapAt(x,y);if(trap)this.triggerTrap(this);
       if(!this.alive)return {ok:true,ended:true};
       this.pickUp();
+      this.discoverRoom();
       if(x===this.stairs.x&&y===this.stairs.y){this._turnStarted=false;this.descend();return {ok:true,descended:true};}
       this.advance();return {ok:true};
     }
@@ -314,7 +418,12 @@
           // Cells BESIDE a trap remain ordinary valid route candidates.
           if(this.trapAt(nx,ny)?.known||
              (tile.fire>0&&tile.fireOwner!=='player'))continue;
-          const danger=(tile.t==='oil'||tile.t==='bush'?0.2:0);
+          const threat=adjacentToEnemy?0:this.enemies.some(enemy=>{
+            if(enemy.hp<=0||!this.tile(enemy.x,enemy.y)?.lit)return false;
+            const range=dist(enemy,{x:nx,y:ny});
+            return range<=((enemy.type==='archer'||enemy.type==='witch')?3:1);
+          })?1.5:0;
+          const danger=(tile.t==='oil'||tile.t==='bush'?0.2:0)+threat;
           const next=p.cost+(dx&&dy?1.4:1)+danger+(this.enemyAt(nx,ny)?12:0);
           const nk=key(nx,ny);
           if(next<(costs.get(nk)??Infinity)){costs.set(nk,next);prev.set(nk,k);open.push({x:nx,y:ny,cost:next});}
@@ -326,9 +435,15 @@
       return path;
     }
     canSeeDanger(){
-      // Automatic routing handles discovered traps and nearby fires per tile.
-      // Proximity to a visible trap alone must NEVER cancel a safe detour.
-      return this.enemies.some(e=>e.hp>0&&this.tile(e.x,e.y)?.lit&&dist(e,this.player)<=6)||
+      // Nearby traps are managed by the path planner, not by enemy alarms.
+      // A distant visible enemy is information, not an immediate threat.
+      return this.enemies.some(e=>{
+        if(e.hp<=0||!this.tile(e.x,e.y)?.lit)return false;
+        const range=dist(e,this.player);
+        if(range<=2)return true;
+        return range<=4&&(e.type==='archer'||e.type==='witch'||
+          e.cast||e.windup)&&this.los(e.x,e.y,this.player.x,this.player.y);
+      })||
         (this.tile(this.player.x,this.player.y)?.fire>0&&
          this.tile(this.player.x,this.player.y)?.fireOwner!=='player');
     }
