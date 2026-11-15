@@ -325,6 +325,8 @@
         lastRewardSeen=id;
         const panel=$('exploreReward');
         panel.textContent='✦ '+reward.text;
+        // Clear stale danger toasts so the new discovery reward is readable.
+        clearTimeout(toastTimer);toastEl.classList.remove('show');
         panel.classList.remove('active');
         // Reflow allows repeated discoveries to retrigger the animation.
         void panel.offsetWidth;

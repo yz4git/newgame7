@@ -463,7 +463,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   position:absolute;
   z-index:7;
   left:50%;
-  top:21%;
+  top:36%;
   transform:translate(-50%,-12px) scale(.94);
   width:max-content;
   max-width:min(84%,350px);
