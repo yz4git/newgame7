@@ -328,7 +328,7 @@ async function run(){
       assert.equal(distant.hp,30,'safe walk lost HP');
 
       await page.evaluate(()=>window.__deepWeaveTest.setupReviewScenario('aimed'));
-      await tapDungeonCell(16,10);
+      await tapDungeonCell(13,10);
       await page.waitForTimeout(330);
       const aimed=await page.evaluate(()=>window.__deepWeaveTest.getAutoState());
       assert.equal(aimed.immediateThreat,true,'aimed archer should be a visible threat');
