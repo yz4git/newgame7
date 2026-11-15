@@ -439,3 +439,60 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   font-variant-numeric:tabular-nums;
 }
 @media(max-width:360px) {#minimapOverlay{width:78px;}}
+
+
+/* v0.13: readable log micro-panels preserve translucency and touch pass-through. */
+#battleLogOverlay .battle-log-line{
+  background:rgba(2,12,21,.30);
+  border-radius:4px;
+  padding:1px 4px;
+  text-shadow:0 1px 2px #000,0 0 4px #000;
+}
+#battleLogOverlay .battle-log-line.newest{
+  background:rgba(2,12,21,.47);
+  border-left:2px solid rgba(255,210,129,.64);
+}
+#battleLogOverlay .battle-log-message{
+  font-size:11.5px;
+  font-weight:600;
+}
+#battleLogOverlay .battle-log-line.newest .battle-log-message{
+  font-weight:800;
+}
+.explore-reward{
+  position:absolute;
+  z-index:7;
+  left:50%;
+  top:21%;
+  transform:translate(-50%,-12px) scale(.94);
+  width:max-content;
+  max-width:min(84%,350px);
+  padding:9px 14px;
+  border:1px solid rgba(182,255,226,.75);
+  border-radius:12px;
+  background:linear-gradient(110deg,rgba(9,43,46,.92),rgba(13,65,59,.87));
+  color:#e3fff0;
+  font-weight:800;
+  font-size:14px;
+  line-height:1.35;
+  text-align:center;
+  letter-spacing:.025em;
+  text-shadow:0 1px 3px #061718;
+  box-shadow:0 0 26px rgba(139,255,210,.35);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none!important;
+}
+.explore-reward.active{
+  visibility:visible;
+  animation:dw-reward-burst 1.95s both;
+}
+@keyframes dw-reward-burst{
+  0%{opacity:0;transform:translate(-50%,12px) scale(.86)}
+  13%{opacity:1;transform:translate(-50%,0) scale(1.05)}
+  20%,72%{opacity:1;transform:translate(-50%,0) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-17px) scale(.98)}
+}
+@media(prefers-reduced-motion:reduce){
+  .explore-reward.active{animation:none;opacity:1;}
+}

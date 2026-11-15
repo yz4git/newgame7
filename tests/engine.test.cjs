@@ -458,4 +458,78 @@ assert.equal(farAlert.canSeeDanger(),true,'nearby enemy must still stop auto mov
 console.log('PASS: 500 trap-safe maps, legacy trap repair, exploration rewards,');
 console.log('      save persistence, far-enemy route risk distinction.');
 
+
+// v0.13: balanced deep floors and threat-based automatic path risk.
+const dangerMap=new Game(8601);
+dangerMap.enemies=[];dangerMap.items=[];dangerMap.traps=[];
+dangerMap.player={x:10,y:10};dangerMap.stairs={x:16,y:10};
+for(let y=8;y<=14;y++)for(let x=8;x<=18;x++)dangerMap.tile(x,y).t='floor';
+dangerMap.enemies=[{id:9300,type:'sprout',x:14,y:10,hp:7,maxHp:7,
+  alert:true,stun:0,cast:null,windup:false}];
+dangerMap.updateVision();
+assert.equal(dangerMap.immediateThreat(),false,'distant melee enemy should not interrupt auto-walk');
+assert.equal(dangerMap.threatAt(11,10),0,'safe floor carries no melee risk');
+assert.ok(dangerMap.threatAt(13,10)>=9,'tile adjacent to attacker must be expensive');
+assert.ok(dangerMap.threatAt(12,10)<dangerMap.threatAt(13,10),
+  'pathfinding should favor a safe stand-off distance');
+dangerMap.player={x:13,y:10};dangerMap.updateVision();
+assert.equal(dangerMap.immediateThreat(),true,'adjacent enemy is immediate threat');
+dangerMap.player={x:10,y:10};
+dangerMap.enemies[0].type='archer';dangerMap.enemies[0].cast='arrow';
+dangerMap.updateVision();
+assert.ok(dangerMap.threatAt(12,10)>=5,'ranged line of fire should be costly');
+assert.ok(dangerMap.threatAt(11,10)>=5,'preparing arrow must influence path costs');
+assert.equal(dangerMap.immediateThreat(),true,'aimed ranged attacker requires player response');
+dangerMap.enemies[0].cast=null;
+assert.equal(dangerMap.immediateThreat(),false,'distant archer not yet aiming is not immediate threat');
+const shadow=new Game(8602);
+shadow.enemies=[];shadow.traps=[];shadow.player={x:10,y:10};
+for(let y=7;y<=17;y++)for(let x=7;x<=17;x++)shadow.tile(x,y).t='floor';
+shadow.enemies=[{id:9301,type:'sprout',x:16,y:15,hp:7,maxHp:7,alert:false,stun:0}];
+shadow.updateVision();
+assert.equal(shadow.tile(16,15).lit,true);
+shadow.tile(16,15).lit=false;
+assert.equal(shadow.threatAt(15,15),0,'unseen enemies must not leak into auto-navigation');
+
+for(let seed=1;seed<=90;seed++){
+  const deep=new Game(seed);deep.floor=12;deep.generate();
+  assert.ok(deep.enemies.length<=15,'deep elite count exceeds adjusted cap');
+  assert.ok(deep.safeRouteExists(),'deep map lost safe stairs path');
+}
+const deepHeal=new Game(7999);
+deepHeal.floor=8;deepHeal.hp=10;deepHeal.generate();
+deepHeal.descend();
+assert.equal(deepHeal.floor,9);
+assert.equal(deepHeal.hp,19,'deep-floor transition should heal by 9');
+deepHeal.floor=9;deepHeal.hp=10;deepHeal.generate();deepHeal.descend();
+assert.equal(deepHeal.floor,10);
+assert.equal(deepHeal.hp,21,'floor 10 transition should heal by 11');
+
+const swarm=new Game(8603);
+swarm.enemies=[];swarm.traps=[];swarm.items=[];
+swarm.player={x:10,y:10};
+for(let y=7;y<=13;y++)for(let x=7;x<=13;x++)swarm.tile(x,y).t='floor';
+const punches=[[9,10],[11,10],[10,9],[10,11]].map(([x,y],i)=>({
+  id:9400+i,type:'runner',x,y,hp:6,maxHp:6,stun:0,
+  windup:false,cast:null,alert:true
+}));
+swarm.enemies=punches;
+swarm.hp=30;swarm.advance();
+assert.equal(swarm.hp,26,'up to two adjacent 2-damage strikes may land per turn');
+const rewardFx=new Game(8604);
+rewardFx.rooms.forEach(r=>r.visited=false);
+rewardFx.discoveries=0;rewardFx.hp=18;
+for(let i=0;i<3;i++){
+  rewardFx.player={x:rewardFx.rooms[i].cx,y:rewardFx.rooms[i].cy};
+  rewardFx.discoverRoom();
+}
+assert.equal(rewardFx.rewardNotice.room,3);
+assert.match(rewardFx.rewardNotice.text,/HP \+6/);
+assert.equal(rewardFx.rewardNotice.turn,rewardFx.turn);
+assert.ok(rewardFx.effects.some(e=>e.type==='heal'),'exploration reward should produce an effect');
+assert.equal(Game.restore(rewardFx.serialize()).rewardNotice.text,rewardFx.rewardNotice.text,
+  'reward presentation must not affect save restoration');
+console.log('PASS: threat-aware movement, no hidden targeting, deep balance,');
+console.log('      two-hit safeguard, reward event and its visual effect.');
+
 console.log('PASS: 100 seeded maps, connectivity, traps, saves, items, environmental lightning, and victory.');

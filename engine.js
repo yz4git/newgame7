@@ -117,7 +117,7 @@
     }
     generate() {
       this.map=Array.from({length:H},()=>Array.from({length:W},()=>({t:'wall',seen:false,lit:false,fire:0,smoke:0})));
-      this.enemies=[];this.items=[];this.traps=[];this.rooms=[];this.effects=[];this.discoveries=0;
+      this.enemies=[];this.items=[];this.traps=[];this.rooms=[];this.effects=[];this.discoveries=0;this.rewardNotice=null;
       const carve=(x,y)=>{if(this.inside(x,y)&&x>0&&y>0&&x<W-1&&y<H-1)this.map[y][x].t='floor';};
       for(let i=0;i<95&&this.rooms.length<15;i++){
         const rw=this.int(4,8),rh=this.int(4,7),rx=this.int(1,W-rw-2),ry=this.int(1,H-rh-2);
@@ -180,7 +180,9 @@
         this.rooms[0].visited=true;
         this.discoveries=1;
       }
-      const spawnCount=clamp(Math.round(5+this.floor*1.35),7,18);
+      // Deep-floor balance: preserve the elite types without stacking
+      // eighteen simultaneous threats in a single room.
+      const spawnCount=clamp(Math.round(5+this.floor*1.1),7,15);
       for(let i=0;i<spawnCount;i++){
         let pool=['sprout','sprout','runner'];
         if(this.floor>=2)pool.push('archer','eel');
@@ -197,6 +199,8 @@
       for(let i=0;i<itemCount;i++){
         const p=this.freeSpot(3);if(!p||this.itemAt(p.x,p.y))continue;
         let types=['heal','spark','frost','ember','gust','smoke','heal','spark','ember','gust','frost'];
+        // Extra healing opportunities for floors with elite attacks.
+        if(this.floor>=7)types.push('heal','heal');
         if(this.floor%3===0)types.push('blade','ward');
         this.items.push({id:this.nextId++,x:p.x,y:p.y,type:this.pick(types)});
       }
@@ -312,20 +316,25 @@
         room.visited=true;this.discoveries=(this.discoveries||0)+1;
         this.score+=60+this.floor*10;
         if(this.discoveries%3===0){
-          // An optional side-room detour restores stamina or supplies a spell,
-          // giving explorers a useful reason to leave the shortest stair route.
+          // Exploration is a conscious trade-off: pursue unknown rooms for
+          // health or a new elemental technique. Announce it on the board.
+          let text;
           if(this.hp<=this.maxHp-6){
             const healed=Math.min(6,this.maxHp-this.hp);
             this.hp+=healed;
-            this.say('新しい部屋を発見！ 探索の共鳴でHP+'+healed);
+            text='探索の共鳴！ HP +'+healed;
           }else if(this.inventory.length<8){
             const type=this.pick(['spark','frost','ember','gust']);
             this.inventory.push({type});
-            this.say('新しい部屋を発見！ 探索報酬：'+ITEM[type].name);
+            text='探索報酬！ '+ITEM[type].name+' を入手';
           }else{
             this.score+=60;
-            this.say('新しい部屋を発見！ 探索得点を獲得');
+            text='探索報酬！ ボーナス得点 +60';
           }
+          this.rewardNotice={turn:this.turn,depth:this.floor,
+            room:this.discoveries,text};
+          this.emitEffect('heal',this.player,[{...this.player,step:0}]);
+          this.say(text);
         }else this.say('未踏の部屋を発見！ 探索 '+this.discoveries+'/'+this.rooms.length);
         return;
       }
@@ -388,14 +397,17 @@
       if(this.floor>=MAX_FLOOR){
         this.won=true;this.say('星の核を取り戻した！ 深淵を踏破した。');return;
       }
-      this.floor++;this.hp=Math.min(this.maxHp,this.hp+7);this.generate();
+      this.floor++;
+      const recovery=this.floor>=10?11:this.floor>=7?9:7;
+      this.hp=Math.min(this.maxHp,this.hp+recovery);
+      this.generate();
       const gifts=['spark','frost','ember','gust'];
       const reward=gifts[(this.floor-2)%gifts.length];
       if(this.inventory.length<8){
         this.inventory.push({type:reward});
         this.say('階層報酬：'+ITEM[reward].name+'を補充！');
       }
-      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが7回復。');
+      this.say('第'+this.floor+'層：'+this.theme().name+'。 HPが'+recovery+'回復。');
     }
     pathTo(x,y,adjacentToEnemy){
       x=Number(x);y=Number(y);
@@ -418,12 +430,11 @@
           // Cells BESIDE a trap remain ordinary valid route candidates.
           if(this.trapAt(nx,ny)?.known||
              (tile.fire>0&&tile.fireOwner!=='player'))continue;
-          const threat=adjacentToEnemy?0:this.enemies.some(enemy=>{
-            if(enemy.hp<=0||!this.tile(enemy.x,enemy.y)?.lit)return false;
-            const range=dist(enemy,{x:nx,y:ny});
-            return range<=((enemy.type==='archer'||enemy.type==='witch')?3:1);
-          })?1.5:0;
-          const danger=(tile.t==='oil'||tile.t==='bush'?0.2:0)+threat;
+          // Evaluate an actual prospective square against only enemies the
+          // adventurer can see. Penalize line-of-sight for ranged attackers;
+          // avoid pathological back-and-forth at melee threat boundaries.
+          const threat=adjacentToEnemy?0:this.threatAt(nx,ny);
+          const danger=(tile.t==='oil'||tile.t==='bush'?0.2:0)+Math.min(10,threat)*0.1;
           const next=p.cost+(dx&&dy?1.4:1)+danger+(this.enemyAt(nx,ny)?12:0);
           const nk=key(nx,ny);
           if(next<(costs.get(nk)??Infinity)){costs.set(nk,next);prev.set(nk,k);open.push({x:nx,y:ny,cost:next});}
@@ -433,6 +444,35 @@
       const path=[];
       while(best!==src&&path.length<W*H){const [px,py]=best.split(',').map(Number);path.unshift({x:px,y:py});best=prev.get(best);if(!best)return [];}
       return path;
+    }
+    threatAt(x,y){
+      const destination=this.tile(x,y);
+      if(!destination||!this.walkable(x,y))return Infinity;
+      let danger=destination.fire>0&&destination.fireOwner!=='player'?30:0;
+      for(const enemy of this.enemies){
+        if(enemy.hp<=0||!this.tile(enemy.x,enemy.y)?.lit)continue;
+        const d=dist(enemy,{x,y});
+        if(d===0){danger+=25;continue;}
+        const ranged=enemy.type==='archer'||enemy.type==='witch';
+        if(d===1){
+          danger+=enemy.type==='brute'?8:13;
+        }else if(d===2){
+          danger+=ranged?7:2;
+        }else if(d<=4&&ranged&&this.los(enemy.x,enemy.y,x,y)){
+          danger+=enemy.cast?12:5;
+        }
+      }
+      return danger;
+    }
+    immediateThreat(){
+      // Only genuinely immediate attacks should interrupt auto-navigation.
+      return this.enemies.some(e=>{
+        if(e.hp<=0||!this.tile(e.x,e.y)?.lit)return false;
+        const d=dist(e,this.player);
+        return d<=1 || (d<=4&&(e.cast||e.windup)&&
+          this.los(e.x,e.y,this.player.x,this.player.y));
+      }) || (this.tile(this.player.x,this.player.y)?.fire>0&&
+        this.tile(this.player.x,this.player.y)?.fireOwner!=='player');
     }
     canSeeDanger(){
       // Nearby traps are managed by the path planner, not by enemy alarms.
@@ -699,6 +739,7 @@
         this.hp-=3;this.say('燃える床で3ダメージ！');this.checkDeath();
       }
       if(!this.alive)return;
+      let strikesThisTurn=0;
       for(const e of [...this.enemies]){
         if(e.hp<=0)continue;
         const t=this.tile(e.x,e.y);
@@ -708,7 +749,12 @@
           const spell=e.cast;e.cast=null;
           const reach=dist(e,this.player),sight=this.los(e.x,e.y,this.player.x,this.player.y);
           if(spell==='arrow'&&reach<=4&&sight){
-            this.hp-=2;this.say('射手の予告された矢が命中！ -2HP');
+            // Multiple elites may act, but only two damaging blows land
+            // during one turn: a readable, survivable tactical rhythm.
+            if(strikesThisTurn<2){
+              strikesThisTurn++;
+              this.hp-=2;this.say('射手の予告された矢が命中！ -2HP');
+            }
           }else if(spell==='fire'&&reach<=4&&sight){
             const p=this.tile(this.player.x,this.player.y);
             if(p.t!=='water'&&p.t!=='ice'){
@@ -720,14 +766,21 @@
         const d=dist(e,this.player),visible=this.los(e.x,e.y,this.player.x,this.player.y);
         if(e.windup){
           e.windup=false;
-          if(d===1&&visible){this.hp-=MONSTERS[e.type].atk+2;this.say('重装獣の大振りが命中！');}
+          if(d===1&&visible&&strikesThisTurn<2){
+            strikesThisTurn++;
+            this.hp-=MONSTERS[e.type].atk+2;this.say('重装獣の大振りが命中！');
+          }
           else this.say('重装獣の大振りを回避した。');
           this.checkDeath();if(!this.alive)break;continue;
         }
         if(d===1&&visible){
           if(e.type==='brute'){e.windup=true;this.say('重装獣が大きく腕を振り上げた！');continue;}
           const hit=MONSTERS[e.type].atk+(e.type==='eel'&&this.tile(this.player.x,this.player.y).t==='water'?2:0);
-          this.hp-=hit;this.say(MONSTERS[e.type].name+'から'+hit+'ダメージ。');this.checkDeath();if(!this.alive)break;
+          if(strikesThisTurn<2){
+            strikesThisTurn++;
+            this.hp-=hit;this.say(MONSTERS[e.type].name+'から'+hit+'ダメージ。');
+            this.checkDeath();if(!this.alive)break;
+          }
         }else if(e.type==='archer'&&d<=4&&visible){
           e.cast='arrow';this.say('射手が弓を引いた！ 次のターンに射撃。');
         }else if(e.type==='witch'&&d<=4&&visible){

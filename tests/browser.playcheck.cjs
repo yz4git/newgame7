@@ -316,6 +316,46 @@ async function run(){
         await page.screenshot({path:'playcheck-output/'+name+'-trap-'+scenario+'.png',fullPage:true});
       }
 
+      // v0.13 real board-touch regression: distant enemies should not
+      // interrupt safe navigation; a cast about to hit must interrupt it.
+      await page.evaluate(()=>window.__deepWeaveTest.setupReviewScenario('distant'));
+      await tapDungeonCell(12,10);
+      await page.waitForFunction(()=>{const state=window.__deepWeaveTest.getAutoState();
+        return !state.running&&state.player.x===12&&state.player.y===10;
+      },null,{timeout:5000});
+      const distant=await page.evaluate(()=>window.__deepWeaveTest.getAutoState());
+      assert.equal(distant.turn,2,'distant monster stopped safe automatic walking');
+      assert.equal(distant.hp,30,'safe walk lost HP');
+
+      await page.evaluate(()=>window.__deepWeaveTest.setupReviewScenario('aimed'));
+      await tapDungeonCell(16,10);
+      await page.waitForTimeout(330);
+      const aimed=await page.evaluate(()=>window.__deepWeaveTest.getAutoState());
+      assert.equal(aimed.immediateThreat,true,'aimed archer should be a visible threat');
+      assert.equal(aimed.turn,0,'automatic travel walked into a telegraphed arrow');
+      assert.equal(aimed.running,false,'dangerous automatic walk did not stop');
+
+      await page.evaluate(()=>window.__deepWeaveTest.setupReviewScenario('reward'));
+      await tapDungeonCell(11,10);
+      await page.waitForFunction(()=>
+        window.__deepWeaveTest.getAutoState().rewardNotice?.room===3 &&
+        document.querySelector('#exploreReward')?.classList.contains('active'),
+        null,{timeout:4000});
+      const reward=await page.evaluate(()=>({
+        status:window.__deepWeaveTest.getState(),
+        event:window.__deepWeaveTest.getAutoState().rewardNotice,
+        banner:document.querySelector('#exploreReward').textContent,
+        visibility:getComputedStyle(document.querySelector('#exploreReward')).visibility,
+        pointer:getComputedStyle(document.querySelector('#exploreReward')).pointerEvents,
+        rooms:document.querySelector('#exploreLabel').textContent
+      }));
+      assert.equal(reward.status.turn,1,'room discovery should be one movement');
+      assert.equal(reward.status.hp,24,'third room should heal by 6');
+      assert.match(reward.banner,/HP \+6/,'reward announcement is not clear');
+      assert.equal(reward.visibility,'visible');
+      assert.equal(reward.pointer,'none','reward overlay intercepted map gesture');
+      assert.match(reward.rooms,/探索 3\/4部屋/);
+      await page.screenshot({path:'playcheck-output/'+name+'-reward.png',fullPage:true});
       assert.deepEqual(errors,[],'browser errors');
       // Different release only at a new launch: stale shell redirects once
       // and then loads the versioned assets, without an infinite loop.

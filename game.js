@@ -11,7 +11,7 @@
   let game,camX=0,camY=0,scale=1,lastFrame=0,aim=-1,selection=null,autoTimer=0,autoTarget=null,autoReplans=0,gesture=null,pressTimer=0,toastTimer=0,modalMode='';
   let soundEnabled=false,audioContext=null;
   let particles=[],armedTrap=null,flashUntil=0,quickSuggestion=null;
-  let lastEffectSeq=0,activeVfx=[],quickPreview=new Set();
+  let lastEffectSeq=0,activeVfx=[],quickPreview=new Set(),rewardPulseTimer=0,lastRewardSeen='';
   function load(){
     try{const raw=localStorage.getItem(STORE);if(raw){game=Game.restore(raw);return true;}}catch(e){console.warn('Save unavailable',e);}
     game=new Game();return false;
@@ -164,7 +164,7 @@
     hint.textContent=aim>=0?'使う場所や敵をタップ · ✕ で解除':
       warning?(warning.windup?'⚠ 重装獣の強攻撃を回避！':
         warning.cast==='arrow'?'⚠ 射手が狙っている！壁・煙の陰へ':'⚠ 火術の詠唱中！退避しよう'):
-      autoTarget?'自動移動中 · 罠を回避／近い敵で停止':
+      autoTarget?'自動移動中 · 敵の攻撃範囲と罠を回避':
       quickSuggestion?'✦ '+quickSuggestion.name+'が発動可能 · 属性技をタップ':
       'タップで進む · スワイプで1歩 · 長押しで調べる';
     $('cancelAim').hidden=aim<0;
@@ -211,6 +211,7 @@
       '<p><b>道具</b>：鞄から道具を選んで好きな場所に使うこともできる。薬はすぐ使用。</p>'+
       '<p><b>連鎖</b>：水・氷の接続全体を雷が走る。起点から遠いほど弱まり、石の衛兵は雷に強く、水精は弱い。氷結・延焼・突風も活用。</p>'+
       '<p><b>探索報酬</b>：未踏の部屋に入ると得点が増え、3部屋ごとにHP回復または属性技を獲得。ミニマップの水色の印が未踏の部屋。</p>'+
+      '<p><b>戦闘の公平性</b>：敵が複数いる場合も1ターンに命中する攻撃は最大2回。深層では回復手段が増えるが強敵への対応は必要。</p>'+
       '<p><b>技の補充</b>：4体倒すごとに属性技を1つ、階層移動でも1つ補充（道具袋に空きがある場合）。</p>'+
       '<p><b>罠</b>：発見済みの罠は自動移動で回避。新しい階には階段までの安全な道が必ずある。古い冒険の通路も自動修復。</p>'+
       '<p><b>自分の技は安全</b>：自分の火種から生じた炎ではダメージを受けない。敵が作った炎は危険。</p>'+
@@ -317,6 +318,22 @@
   }
   function stopAuto(){if(autoTimer){clearTimeout(autoTimer);autoTimer=0;}autoTarget=null;selection=null;}
   function afterAction(oldTurn){
+    const reward=game.rewardNotice;
+    if(reward&&reward.turn===game.turn){
+      const id=reward.depth+':'+reward.turn+':'+reward.room;
+      if(id!==lastRewardSeen){
+        lastRewardSeen=id;
+        const panel=$('exploreReward');
+        panel.textContent='✦ '+reward.text;
+        panel.classList.remove('active');
+        // Reflow allows repeated discoveries to retrigger the animation.
+        void panel.offsetWidth;
+        panel.classList.add('active');
+        clearTimeout(rewardPulseTimer);
+        rewardPulseTimer=setTimeout(()=>panel.classList.remove('active'),2000);
+        sound(830,.16);
+      }
+    }
     if(game.turn!==oldTurn && /ダメージ|倒した|命中|攻撃/.test(game.log[0]?.text||''))flashUntil=performance.now()+180;
     if(game.turn!==oldTurn){sound(game.log[0]?.text.includes('ダメージ')?190:410,.055);}
     if(!game.alive||game.won)stopAuto();
@@ -373,7 +390,11 @@
       autoTimer=0;
       if(!autoTarget||!game.alive||game.won)return;
       const target=autoTarget;
-      // Enemy click-follow can target a moving opponent.
+      // Let the player respond to a real attack about to connect, but
+      // do not interrupt simply because an enemy is visible far away.
+      if(!target.enemyId&&game.immediateThreat()){
+        stopAuto();showToast('敵が目前！ 攻撃・回避・属性技を選択');refresh();return;
+      }
       if(target.enemyId){
         const enemy=game.enemies.find(e=>e.id===target.enemyId&&e.hp>0);
         if(!enemy){stopAuto();refresh();return;}
@@ -389,37 +410,38 @@
       }
       let next=target.path[0];
       if(!next){finishAuto();return;}
-      // A trap can be discovered DURING a long walk. Re-plan around it
-      // instead of treating adjacency as a reason to stop altogether.
       const blocked=()=>hazardous(next)||!!game.enemyAt(next.x,next.y)||
         !game.walkable(next.x,next.y)||
         game.blockedDiagonal(game.player.x,game.player.y,next.x,next.y);
-      if(blocked()){
-        autoReplans++;
-        target.path=safeRoute();
-        next=target.path[0];
-        if(!next||blocked()){
-          stopAuto();
-          showToast('安全な迂回路がないため自動移動を停止');
-          refresh();
-          return;
+      const danger=()=>game.threatAt(next.x,next.y);
+      // Recalculate at the moment of movement when a visible enemy changes
+      // its influence over the next tile, not just at the first tap.
+      if(blocked()||(!target.enemyId&&danger()>=4)){
+        const updated=safeRoute();
+        if(updated.length&&(updated[0].x!==next.x||updated[0].y!==next.y)){
+          target.path=updated;next=updated[0];autoReplans++;
         }
+      }
+      if(!next||blocked()){
+        stopAuto();showToast('安全な迂回路がないため自動移動を停止');refresh();return;
+      }
+      // If every route requires entering the attack range of a visible
+      // hostile enemy, keep this decision in the player's hands.
+      const currentDanger=game.threatAt(game.player.x,game.player.y);
+      if(!target.enemyId&&danger()>=9&&danger()>=currentDanger){
+        stopAuto();showToast('この先は敵の攻撃範囲。手動で進むか属性技を使おう');refresh();return;
       }
       const old=game.turn,dx=next.x-game.player.x,dy=next.y-game.player.y;
       if(Math.max(Math.abs(dx),Math.abs(dy))!==1){
         stopAuto();showToast('経路が変化したため自動移動を停止');refresh();return;
       }
-      // The path segment has been revalidated: consume it only now.
       target.path.shift();
-      const wasDanger=game.canSeeDanger();
       const result=game.move(dx,dy);
       if(!result.ok){stopAuto();refresh();return;}
       afterAction(old);
       if(!game.alive||game.won||result.descended){stopAuto();return;}
-      // Visible enemies and hostile fire underfoot remain real threats.
-      // A known trap merely NEXT TO a safe cell is not a threat.
-      if(game.canSeeDanger()||wasDanger){
-        stopAuto();showToast('敵や直接の危険を察知。自動移動を停止');refresh();return;
+      if(game.immediateThreat()){
+        stopAuto();showToast('目前に敵！ 回避や攻撃を選択');refresh();return;
       }
       if(target.path.length)autoTimer=setTimeout(advancePath,125);
       else finishAuto();
@@ -568,7 +590,13 @@
     }
     if(t in MONSTERS){
       const d=MONSTERS[t],tone=d.color;
-      c.shadowColor=tone;c.shadowBlur=5;
+      // A high-contrast silhouette keeps tiny actors distinct from similarly
+      // colored elemental floors, without changing their hitboxes.
+      c.fillStyle='rgba(3,12,20,.64)';
+      c.beginPath();c.ellipse(cx,cy+s*.08,s*.39,s*.39,0,0,Math.PI*2);c.fill();
+      c.strokeStyle='rgba(245,252,252,.64)';c.lineWidth=Math.max(1.3,s*.045);
+      c.beginPath();c.arc(cx,cy+s*.08,s*.38,0,Math.PI*2);c.stroke();
+      c.shadowColor=tone;c.shadowBlur=7;
       c.fillStyle=tone;c.beginPath();
       if(t==='eel'){c.ellipse(cx,cy,s*.3,s*.18,.5,0,Math.PI*2);}
       else{c.ellipse(cx,cy+s*.07,t==='brute'?s*.35:s*.27,t==='guard'?s*.33:s*.26,0,0,Math.PI*2);}
@@ -700,7 +728,7 @@
         sprite(col,row,e.type,c,cell);
         if(e.windup||e.cast){
           const glyph=e.cast==='arrow'?'➶':e.cast==='fire'?'✹':'!';
-          c.fillStyle='#ffe6a8';c.font='bold '+Math.round(s*.43)+'px sans-serif';
+          c.fillStyle='#fff2af';c.font='bold '+Math.round(s*.5)+'px sans-serif';
           c.fillText(glyph,px+s*.75,py+s*.23);
           c.strokeStyle='#f5bc69';c.lineWidth=2;c.strokeRect(px+2,py+2,s-4,s-4);
         }
@@ -865,8 +893,42 @@
     hideModal();refresh();
     return {trap:{...game.traps[0]}};
   }
-  window.__deepWeaveTest={setupTrapAutoScenario,
+  function setupReviewScenario(mode){
+    if(!['localhost','127.0.0.1'].includes(location.hostname))
+      throw new Error('local test fixture only');
+    if(!['reward','distant','aimed'].includes(mode))
+      throw new Error('unknown review scenario');
+    stopAuto();autoReplans=0;armedTrap=null;lastRewardSeen='';
+    game=new Game(30398);
+    game.player={x:10,y:10};game.stairs={x:16,y:12};
+    game.enemies=[];game.items=[];game.traps=[];game.log=[];
+    for(let y=8;y<=14;y++)for(let x=7;x<=18;x++){
+      const tile=game.tile(x,y);tile.t='floor';tile.seen=true;
+      tile.fire=0;tile.fireOwner=null;tile.smoke=0;
+    }
+    if(mode==='reward'){
+      game.rooms=[
+        {x:7,y:8,w:2,h:2,cx:8,cy:9,visited:true},
+        {x:8,y:10,w:2,h:2,cx:9,cy:11,visited:true},
+        {x:11,y:10,w:2,h:2,cx:11,cy:10,visited:false},
+        {x:15,y:11,w:2,h:2,cx:16,cy:12,visited:false}
+      ];
+      game.discoveries=2;game.hp=18;game.rewardNotice=null;
+    }else{
+      game.rooms=[{x:9,y:9,w:2,h:2,cx:10,cy:10,visited:true}];
+      game.discoveries=1;
+      game.enemies=[{id:7777,type:mode==='aimed'?'archer':'sprout',
+        x:14,y:10,hp:9,maxHp:9,stun:14,windup:false,
+        cast:mode==='aimed'?'arrow':null,alert:true}];
+    }
+    game.updateVision();lastEffectSeq=0;activeVfx=[];quickPreview=new Set();
+    hideModal();refresh();
+    return {player:{...game.player},threat:game.immediateThreat()};
+  }
+  window.__deepWeaveTest={setupTrapAutoScenario,setupReviewScenario,
     getAutoState:()=>({running:!!autoTarget,replans:autoReplans,
+      immediateThreat:game.immediateThreat(),
+      rewardNotice:game.rewardNotice,
       player:{...game.player},turn:game.turn,hp:game.hp,
       trapKnown:game.traps[0]?.known??false,
       trapUsed:game.traps[0]?.used??false}),
